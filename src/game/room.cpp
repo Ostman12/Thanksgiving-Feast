@@ -1,5 +1,6 @@
 #include "game/room.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "game/text.h"
@@ -21,8 +22,38 @@ const char* phaseName(Phase phase) {
   return "unknown";
 }
 
+const char* gameName(Game game) {
+  switch (game) {
+    case Game::None: return "";
+    case Game::Mystery: return "mystery";
+    case Game::Wyr: return "wyr";
+  }
+  return "";
+}
+
+namespace {
+
+// How long a phase lasts, or nullopt if it waits for the host.
+std::optional<std::int64_t> phaseDuration(Phase phase) {
+  switch (phase) {
+    case Phase::MysteryDiscuss: return kDiscussMs;
+    case Phase::MysteryVote: return kVoteMs;
+    case Phase::MysteryGuess: return kGuessMs;
+    case Phase::WyrChoose: return kChooseMs;
+    default: return std::nullopt;
+  }
+}
+
+Phase firstPhaseOf(Game game) {
+  return game == Game::Mystery ? Phase::MysteryDiscuss : Phase::WyrChoose;
+}
+
+}  // namespace
+
 Room::Room(std::string code, bool testMode, std::uint32_t seed)
     : code_(std::move(code)), testMode_(testMode), rng_(seed) {}
+
+// ---------------------------------------------------------------- players
 
 JoinResult Room::addPlayer(const std::string& rawName) {
   JoinResult result;
@@ -55,24 +86,36 @@ JoinResult Room::addPlayer(const std::string& rawName) {
   players_.push_back(player);
 
   if (hostId_.empty()) hostId_ = player.id;
+  emitRoomState();
 
   result.playerId = player.id;
   result.token = player.token;
   return result;
 }
 
-JoinResult Room::rejoin(const std::string& token) {
+JoinResult Room::rejoin(const std::string& token, std::int64_t nowMs) {
   JoinResult result;
+  Player* player = nullptr;
   for (Player& p : players_) {
-    if (!token.empty() && p.token == token) {
-      p.connected = true;
-      reassignHostIfNeeded();
-      result.playerId = p.id;
-      result.token = p.token;
-      return result;
-    }
+    if (!token.empty() && p.token == token) player = &p;
   }
-  result.error = "invalid rejoin token";
+  if (player == nullptr) {
+    result.error = "invalid rejoin token";
+    return result;
+  }
+
+  player->connected = true;
+  reassignHostIfNeeded();
+  result.playerId = player->id;
+  result.token = player->token;
+
+  if (phase_ == Phase::Paused && connectedCount() >= kMinConnectedToPlay) {
+    enterPhase(firstPhaseOf(game_), nowMs);  // Resume: start the waiting round.
+  } else {
+    emitRoomState();
+  }
+  // The rejoining player missed earlier PHASE messages, so they get one now.
+  emitPhase(result.playerId);
   return result;
 }
 
@@ -81,6 +124,7 @@ void Room::disconnect(const std::string& playerId) {
   if (p == nullptr) return;
   p->connected = false;
   reassignHostIfNeeded();
+  emitRoomState();
 }
 
 const Player* Room::findPlayer(const std::string& playerId) const {
@@ -125,6 +169,165 @@ std::string Room::makeToken() {
   std::string token;
   for (int i = 0; i < 32; ++i) token += kHex[pick(rng_)];
   return token;
+}
+
+// ---------------------------------------------------------------- host actions
+
+std::string Room::startMatch(const std::string& playerId, std::int64_t nowMs) {
+  if (phase_ != Phase::Lobby) return "match already started";
+  if (playerId != hostId_) return "not the host";
+  std::size_t needed = testMode_ ? kMinPlayersToStartTestMode : kMinPlayersToStart;
+  if (connectedCount() < needed) return "not enough players";
+
+  emit(MatchStartedEvent{kMysteryRounds, kWyrRounds});
+  startRound(Game::Mystery, 1, nowMs);
+  return "";
+}
+
+std::string Room::next(const std::string& playerId, std::int64_t nowMs) {
+  if (playerId != hostId_) return "not the host";
+  if (phase_ == Phase::Lobby || phase_ == Phase::Paused) return "wrong phase";
+  advance(nowMs);
+  return "";
+}
+
+std::string Room::endMatch(const std::string& playerId) {
+  if (playerId != hostId_) return "not the host";
+  if (phase_ == Phase::Lobby || phase_ == Phase::MatchOver) return "wrong phase";
+  finishMatch();
+  return "";
+}
+
+void Room::tick(std::int64_t nowMs) {
+  if (deadlineMs_ && nowMs >= *deadlineMs_) advance(nowMs);
+}
+
+// ---------------------------------------------------------------- phase engine
+
+// Ends the current phase and moves to the next one. Called by the deadline
+// (tick) or the host (next). Steps 3 and 4 add the game results here.
+void Room::advance(std::int64_t nowMs) {
+  switch (phase_) {
+    case Phase::MysteryDiscuss:
+      enterPhase(Phase::MysteryVote, nowMs);
+      break;
+    case Phase::MysteryVote:
+      enterPhase(Phase::MysteryGuess, nowMs);
+      break;
+    case Phase::MysteryGuess:
+      enterPhase(Phase::MysteryReveal, nowMs);
+      break;
+    case Phase::MysteryReveal:
+      if (round_ < kMysteryRounds) {
+        startRound(Game::Mystery, round_ + 1, nowMs);
+      } else {
+        startRound(Game::Wyr, 1, nowMs);
+      }
+      break;
+    case Phase::WyrChoose:
+      enterPhase(Phase::WyrReveal, nowMs);
+      break;
+    case Phase::WyrReveal:
+      if (round_ < kWyrRounds) {
+        startRound(Game::Wyr, round_ + 1, nowMs);
+      } else {
+        finishMatch();
+      }
+      break;
+    case Phase::MatchOver:
+      returnToLobby();
+      break;
+    case Phase::Lobby:
+    case Phase::Paused:
+      break;  // Nothing to end; callers reject these.
+  }
+}
+
+// rules.md: if fewer than 3 players are connected when a round would start,
+// the match pauses until enough reconnect (see rejoin) or the host ends it.
+void Room::startRound(Game game, int round, std::int64_t nowMs) {
+  game_ = game;
+  round_ = round;
+  if (connectedCount() < kMinConnectedToPlay) {
+    phase_ = Phase::Paused;
+    deadlineMs_.reset();
+    emitRoomState();
+    emitPhase();
+    return;
+  }
+  enterPhase(firstPhaseOf(game), nowMs);
+}
+
+void Room::enterPhase(Phase phase, std::int64_t nowMs) {
+  phase_ = phase;
+  std::optional<std::int64_t> duration = phaseDuration(phase);
+  if (duration) {
+    deadlineMs_ = nowMs + *duration;
+  } else {
+    deadlineMs_.reset();
+  }
+  emitRoomState();
+  emitPhase();
+}
+
+void Room::finishMatch() {
+  phase_ = Phase::MatchOver;
+  game_ = Game::None;
+  round_ = 0;
+  deadlineMs_.reset();
+
+  MatchOverEvent over;
+  for (const Player& p : players_) over.leaderboard.push_back({p.id, p.name, p.score});
+  // stable_sort keeps join order among equal scores.
+  std::stable_sort(over.leaderboard.begin(), over.leaderboard.end(),
+                   [](const LeaderboardEntry& a, const LeaderboardEntry& b) {
+                     return a.score > b.score;
+                   });
+  for (const LeaderboardEntry& e : over.leaderboard) {
+    if (e.score == over.leaderboard.front().score) over.winnerIds.push_back(e.playerId);
+  }
+
+  emit(std::move(over));
+  emitRoomState();
+  emitPhase();
+}
+
+void Room::returnToLobby() {
+  for (Player& p : players_) p.score = 0;
+  phase_ = Phase::Lobby;
+  game_ = Game::None;
+  round_ = 0;
+  deadlineMs_.reset();
+  emitRoomState();
+  emitPhase();
+}
+
+// ---------------------------------------------------------------- outbox
+
+std::vector<Outgoing> Room::takeOutbox() {
+  std::vector<Outgoing> out;
+  out.swap(outbox_);
+  return out;
+}
+
+void Room::emit(Event event, std::string toPlayerId) {
+  outbox_.push_back({std::move(toPlayerId), std::move(event)});
+}
+
+void Room::emitRoomState() {
+  RoomStateEvent state;
+  state.code = code_;
+  state.hostId = hostId_;
+  state.phase = phase_;
+  state.testMode = testMode_;
+  for (const Player& p : players_) {
+    state.players.push_back({p.id, p.name, p.score, p.connected});
+  }
+  emit(std::move(state));
+}
+
+void Room::emitPhase(std::string toPlayerId) {
+  emit(PhaseEvent{game_, phase_, round_, deadlineMs_}, std::move(toPlayerId));
 }
 
 }  // namespace feast

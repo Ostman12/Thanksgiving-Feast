@@ -105,7 +105,7 @@ TEST(original_host_rejoining_does_not_take_host_back) {
   JoinResult bob = room.addPlayer("Bob");
   room.disconnect(ann.playerId);
   CHECK_EQ(room.hostId(), bob.playerId);
-  CHECK(room.rejoin(ann.token).ok());
+  CHECK(room.rejoin(ann.token, 0).ok());
   CHECK_EQ(room.hostId(), bob.playerId);
 }
 
@@ -116,7 +116,7 @@ TEST(everyone_gone_then_first_back_becomes_host) {
   room.disconnect(ann.playerId);
   room.disconnect(bob.playerId);
   CHECK_EQ(room.connectedCount(), std::size_t(0));
-  CHECK(room.rejoin(bob.token).ok());
+  CHECK(room.rejoin(bob.token, 0).ok());
   CHECK_EQ(room.hostId(), bob.playerId);
 }
 
@@ -128,7 +128,7 @@ TEST(rejoin_restores_seat_and_score) {
   CHECK(!room.findPlayer(ann.playerId)->connected);
   CHECK_EQ(room.connectedCount(), std::size_t(1));
 
-  JoinResult back = room.rejoin(ann.token);
+  JoinResult back = room.rejoin(ann.token, 0);
   CHECK(back.ok());
   CHECK_EQ(back.playerId, ann.playerId);
   CHECK_EQ(back.token, ann.token);
@@ -140,8 +140,8 @@ TEST(rejoin_restores_seat_and_score) {
 TEST(rejoin_with_bad_token_fails) {
   Room room = makeRoom();
   room.addPlayer("Ann");
-  CHECK_EQ(room.rejoin("nope").error, std::string("invalid rejoin token"));
-  CHECK_EQ(room.rejoin("").error, std::string("invalid rejoin token"));
+  CHECK_EQ(room.rejoin("nope", 0).error, std::string("invalid rejoin token"));
+  CHECK_EQ(room.rejoin("", 0).error, std::string("invalid rejoin token"));
 }
 
 TEST(disconnect_unknown_id_is_ignored) {

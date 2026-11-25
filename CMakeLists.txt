@@ -24,6 +24,7 @@ add_executable(feast_tests
   tests/test_text.cpp
   tests/test_room_code.cpp
   tests/test_room.cpp
+  tests/test_phases.cpp
 )
 target_link_libraries(feast_tests PRIVATE feast_game)
 add_test(NAME feast_tests COMMAND feast_tests)
