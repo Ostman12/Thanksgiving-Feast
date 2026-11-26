@@ -101,6 +101,10 @@ class Room {
   // Hands over the queued events, oldest first, and clears the queue.
   std::vector<Outgoing> takeOutbox();
 
+  // WATCH_ROOM catch-up for a display: ROOM_STATE, the room-wide messages
+  // needed to rebuild the current screen, then PHASE. Never anything private.
+  std::vector<Event> displaySnapshot() const;
+
   const std::string& code() const { return code_; }
   const std::string& hostId() const { return hostId_; }
   Phase phase() const { return phase_; }
@@ -144,6 +148,7 @@ class Room {
   std::vector<std::string> chooserIds() const;
 
   void emit(Event event, std::string toPlayerId = "");
+  RoomStateEvent roomStateEvent() const;
   void emitRoomState();
   void emitPhase(std::string toPlayerId = "");
 

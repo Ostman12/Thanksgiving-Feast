@@ -332,7 +332,7 @@ void Room::emit(Event event, std::string toPlayerId) {
   outbox_.push_back({std::move(toPlayerId), std::move(event)});
 }
 
-void Room::emitRoomState() {
+RoomStateEvent Room::roomStateEvent() const {
   RoomStateEvent state;
   state.code = code_;
   state.hostId = hostId_;
@@ -341,7 +341,41 @@ void Room::emitRoomState() {
   for (const Player& p : players_) {
     state.players.push_back({p.id, p.name, p.score, p.connected});
   }
-  emit(std::move(state));
+  return state;
+}
+
+void Room::emitRoomState() { emit(roomStateEvent()); }
+
+std::vector<Event> Room::displaySnapshot() const {
+  std::vector<Event> events;
+  events.push_back(roomStateEvent());
+  switch (phase_) {
+    case Phase::MysteryVote:
+      events.push_back(SubmittedEvent{voterIds()});
+      break;
+    case Phase::MysteryGuess:
+      if (mystery_.voteResult) events.push_back(*mystery_.voteResult);
+      break;
+    case Phase::MysteryReveal:
+      if (mystery_.voteResult) events.push_back(*mystery_.voteResult);
+      if (mystery_.roundResult) events.push_back(*mystery_.roundResult);
+      break;
+    case Phase::WyrChoose:
+      events.push_back(wyr_.prompt);
+      events.push_back(SubmittedEvent{chooserIds()});
+      break;
+    case Phase::WyrReveal:
+      events.push_back(wyr_.prompt);
+      if (wyr_.result) events.push_back(*wyr_.result);
+      break;
+    case Phase::MatchOver:
+      if (matchOver_) events.push_back(*matchOver_);
+      break;
+    default:
+      break;
+  }
+  events.push_back(PhaseEvent{game_, phase_, round_, deadlineMs_});
+  return events;
 }
 
 void Room::emitPhase(std::string toPlayerId) {
