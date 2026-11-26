@@ -74,7 +74,47 @@ struct MatchOverEvent {
   std::vector<LeaderboardEntry> leaderboard;  // High to low.
 };
 
-using Event = std::variant<RoomStateEvent, MatchStartedEvent, PhaseEvent, MatchOverEvent>;
+struct PointsDelta {
+  std::string playerId;
+  int delta = 0;
+};
+
+struct Vote {
+  std::string voterId;
+  std::optional<std::string> targetId;  // nullopt = Skip
+};
+
+// YOUR_WORD. Always sent to one player only.
+struct YourWordEvent {
+  std::string word;
+  bool isImpostor = false;
+};
+
+// SUBMITTED. Ids only, never what anyone chose.
+struct SubmittedEvent {
+  std::vector<std::string> playerIds;
+};
+
+// VOTE_RESULT
+struct VoteResultEvent {
+  std::vector<Vote> votes;
+  std::optional<std::string> accusedId;  // nullopt when nobody is accused
+  bool caught = false;
+};
+
+// ROUND_RESULT
+struct RoundResultEvent {
+  std::string impostorId;
+  std::string mainWord;
+  std::string impostorWord;
+  std::optional<std::string> guess;
+  std::optional<bool> guessCorrect;  // nullopt when there was no guess
+  bool voided = false;               // "void" in JSON
+  std::vector<PointsDelta> points;
+};
+
+using Event = std::variant<RoomStateEvent, MatchStartedEvent, PhaseEvent, MatchOverEvent,
+                           YourWordEvent, SubmittedEvent, VoteResultEvent, RoundResultEvent>;
 
 struct Outgoing {
   std::string toPlayerId;  // Empty means everyone in the room.

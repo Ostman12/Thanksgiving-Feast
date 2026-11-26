@@ -51,7 +51,7 @@ TEST(duplicate_name_rejected_case_insensitive) {
 TEST(disconnected_player_keeps_name) {
   Room room = makeRoom();
   JoinResult ann = room.addPlayer("Ann");
-  room.disconnect(ann.playerId);
+  room.disconnect(ann.playerId, 0);
   CHECK_EQ(room.addPlayer("Ann").error, std::string("name taken"));
 }
 
@@ -68,7 +68,7 @@ TEST(disconnected_players_still_count_toward_limit) {
   Room room = makeRoom();
   for (int i = 0; i < 10; ++i) {
     JoinResult r = room.addPlayer("P" + std::to_string(i));
-    room.disconnect(r.playerId);
+    room.disconnect(r.playerId, 0);
   }
   CHECK_EQ(room.addPlayer("Extra").error, std::string("room is full"));
 }
@@ -93,9 +93,9 @@ TEST(host_passes_to_earliest_connected_player) {
   JoinResult ann = room.addPlayer("Ann");
   JoinResult bob = room.addPlayer("Bob");
   JoinResult cat = room.addPlayer("Cat");
-  room.disconnect(bob.playerId);
+  room.disconnect(bob.playerId, 0);
   CHECK_EQ(room.hostId(), ann.playerId);  // non-host leaving changes nothing
-  room.disconnect(ann.playerId);
+  room.disconnect(ann.playerId, 0);
   CHECK_EQ(room.hostId(), cat.playerId);  // Bob is disconnected, so Cat
 }
 
@@ -103,7 +103,7 @@ TEST(original_host_rejoining_does_not_take_host_back) {
   Room room = makeRoom();
   JoinResult ann = room.addPlayer("Ann");
   JoinResult bob = room.addPlayer("Bob");
-  room.disconnect(ann.playerId);
+  room.disconnect(ann.playerId, 0);
   CHECK_EQ(room.hostId(), bob.playerId);
   CHECK(room.rejoin(ann.token, 0).ok());
   CHECK_EQ(room.hostId(), bob.playerId);
@@ -113,8 +113,8 @@ TEST(everyone_gone_then_first_back_becomes_host) {
   Room room = makeRoom();
   JoinResult ann = room.addPlayer("Ann");
   JoinResult bob = room.addPlayer("Bob");
-  room.disconnect(ann.playerId);
-  room.disconnect(bob.playerId);
+  room.disconnect(ann.playerId, 0);
+  room.disconnect(bob.playerId, 0);
   CHECK_EQ(room.connectedCount(), std::size_t(0));
   CHECK(room.rejoin(bob.token, 0).ok());
   CHECK_EQ(room.hostId(), bob.playerId);
@@ -124,7 +124,7 @@ TEST(rejoin_restores_seat_and_score) {
   Room room = makeRoom();
   JoinResult ann = room.addPlayer("Ann");
   room.addPlayer("Bob");
-  room.disconnect(ann.playerId);
+  room.disconnect(ann.playerId, 0);
   CHECK(!room.findPlayer(ann.playerId)->connected);
   CHECK_EQ(room.connectedCount(), std::size_t(1));
 
@@ -147,7 +147,7 @@ TEST(rejoin_with_bad_token_fails) {
 TEST(disconnect_unknown_id_is_ignored) {
   Room room = makeRoom();
   JoinResult ann = room.addPlayer("Ann");
-  room.disconnect("p999");
+  room.disconnect("p999", 0);
   CHECK_EQ(room.hostId(), ann.playerId);
   CHECK_EQ(room.connectedCount(), std::size_t(1));
 }

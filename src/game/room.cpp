@@ -110,21 +110,25 @@ JoinResult Room::rejoin(const std::string& token, std::int64_t nowMs) {
   result.token = player->token;
 
   if (phase_ == Phase::Paused && connectedCount() >= kMinConnectedToPlay) {
-    enterPhase(firstPhaseOf(game_), nowMs);  // Resume: start the waiting round.
+    beginRound(nowMs);  // Resume: start the waiting round.
   } else {
     emitRoomState();
   }
-  // The rejoining player missed earlier PHASE messages, so they get one now.
+  // The rejoining player missed earlier messages: send what they need to
+  // rebuild their screen, to them only, then the current PHASE.
+  mysteryCatchUp(result.playerId);
+  if (phase_ == Phase::MatchOver && matchOver_) emit(*matchOver_, result.playerId);
   emitPhase(result.playerId);
   return result;
 }
 
-void Room::disconnect(const std::string& playerId) {
+void Room::disconnect(const std::string& playerId, std::int64_t nowMs) {
   Player* p = findPlayerMutable(playerId);
   if (p == nullptr) return;
   p->connected = false;
   reassignHostIfNeeded();
   emitRoomState();
+  mysteryOnDisconnect(playerId, nowMs);
 }
 
 const Player* Room::findPlayer(const std::string& playerId) const {
@@ -179,6 +183,8 @@ std::string Room::startMatch(const std::string& playerId, std::int64_t nowMs) {
   std::size_t needed = testMode_ ? kMinPlayersToStartTestMode : kMinPlayersToStart;
   if (connectedCount() < needed) return "not enough players";
 
+  pastImpostors_.clear();
+  matchOver_.reset();
   emit(MatchStartedEvent{kMysteryRounds, kWyrRounds});
   startRound(Game::Mystery, 1, nowMs);
   return "";
@@ -205,17 +211,17 @@ void Room::tick(std::int64_t nowMs) {
 // ---------------------------------------------------------------- phase engine
 
 // Ends the current phase and moves to the next one. Called by the deadline
-// (tick) or the host (next). Steps 3 and 4 add the game results here.
+// (tick), the host (next), or when everyone due an action has acted.
 void Room::advance(std::int64_t nowMs) {
   switch (phase_) {
     case Phase::MysteryDiscuss:
       enterPhase(Phase::MysteryVote, nowMs);
       break;
     case Phase::MysteryVote:
-      enterPhase(Phase::MysteryGuess, nowMs);
+      finishVote(nowMs);
       break;
     case Phase::MysteryGuess:
-      enterPhase(Phase::MysteryReveal, nowMs);
+      finishMysteryRound(false, nowMs);
       break;
     case Phase::MysteryReveal:
       if (round_ < kMysteryRounds) {
@@ -255,7 +261,14 @@ void Room::startRound(Game game, int round, std::int64_t nowMs) {
     emitPhase();
     return;
   }
-  enterPhase(firstPhaseOf(game), nowMs);
+  beginRound(nowMs);
+}
+
+// Sets up the content for game_/round_ (words, prompt) and enters its first
+// phase. Used by startRound and when a paused match resumes.
+void Room::beginRound(std::int64_t nowMs) {
+  if (game_ == Game::Mystery) setupMysteryRound();
+  enterPhase(firstPhaseOf(game_), nowMs);
 }
 
 void Room::enterPhase(Phase phase, std::int64_t nowMs) {
@@ -287,6 +300,7 @@ void Room::finishMatch() {
     if (e.score == over.leaderboard.front().score) over.winnerIds.push_back(e.playerId);
   }
 
+  matchOver_ = over;
   emit(std::move(over));
   emitRoomState();
   emitPhase();
@@ -294,6 +308,7 @@ void Room::finishMatch() {
 
 void Room::returnToLobby() {
   for (Player& p : players_) p.score = 0;
+  matchOver_.reset();
   phase_ = Phase::Lobby;
   game_ = Game::None;
   round_ = 0;

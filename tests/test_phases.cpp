@@ -2,40 +2,11 @@
 
 #include "game/room.h"
 #include "test_framework.h"
+#include "test_helpers.h"
 
 using namespace feast;
 
-namespace {
-
-const std::int64_t T0 = 1'000'000;  // Arbitrary "now" for tests.
-
-// A room with `count` players named P0..Pn. ids[0] is the host.
-struct Setup {
-  Room room;
-  std::vector<JoinResult> players;
-  explicit Setup(int count, bool testMode = false) : room("ABCD", testMode, 42) {
-    for (int i = 0; i < count; ++i) players.push_back(room.addPlayer("P" + std::to_string(i)));
-    room.takeOutbox();  // Ignore join events.
-  }
-  const std::string& host() const { return players[0].playerId; }
-  const std::string& id(int i) const { return players[i].playerId; }
-};
-
-template <class T>
-std::vector<T> eventsOf(const std::vector<Outgoing>& out) {
-  std::vector<T> found;
-  for (const Outgoing& o : out) {
-    if (const T* e = std::get_if<T>(&o.event)) found.push_back(*e);
-  }
-  return found;
-}
-
-// Host presses Next until the room reaches `phase`, at most 50 times.
-void nextUntil(Setup& s, Phase phase) {
-  for (int i = 0; i < 50 && s.room.phase() != phase; ++i) s.room.next(s.room.hostId(), T0);
-}
-
-}  // namespace
+using namespace testhelp;
 
 // ---------------------------------------------------------------- START_MATCH
 
@@ -60,7 +31,7 @@ TEST(start_needs_3_players_in_test_mode) {
 
 TEST(start_counts_only_connected_players) {
   Setup s(4);
-  s.room.disconnect(s.id(3));
+  s.room.disconnect(s.id(3), T0);
   CHECK_EQ(s.room.startMatch(s.host(), T0), std::string("not enough players"));
 }
 
@@ -72,17 +43,30 @@ TEST(start_enters_mystery_discuss_round_1) {
   CHECK_EQ(s.room.round(), 1);
   CHECK(s.room.deadlineMs() == std::optional<std::int64_t>(T0 + 100'000));
 
-  std::vector<Outgoing> out = s.room.takeOutbox();
-  CHECK_EQ(out.size(), std::size_t(3));  // MATCH_STARTED, ROOM_STATE, PHASE
-  CHECK(std::holds_alternative<MatchStartedEvent>(out[0].event));
-  CHECK(std::holds_alternative<RoomStateEvent>(out[1].event));
-  CHECK(std::holds_alternative<PhaseEvent>(out[2].event));
-  for (const Outgoing& o : out) CHECK(o.toPlayerId.empty());  // all room-wide
+  // Room-wide: exactly MATCH_STARTED, ROOM_STATE, PHASE, in that order.
+  // Everything else is private (each player's YOUR_WORD).
+  std::vector<Outgoing> roomWide;
+  for (const Outgoing& o : s.room.takeOutbox()) {
+    if (o.toPlayerId.empty()) {
+      roomWide.push_back(o);
+    } else {
+      CHECK(std::holds_alternative<YourWordEvent>(o.event));
+    }
+  }
+  CHECK_EQ(roomWide.size(), std::size_t(3));
+  if (roomWide.size() != 3) return;
+  CHECK(std::holds_alternative<MatchStartedEvent>(roomWide[0].event));
+  CHECK(std::holds_alternative<RoomStateEvent>(roomWide[1].event));
+  CHECK(std::holds_alternative<PhaseEvent>(roomWide[2].event));
+  if (!std::holds_alternative<MatchStartedEvent>(roomWide[0].event) ||
+      !std::holds_alternative<PhaseEvent>(roomWide[2].event)) {
+    return;
+  }
 
-  MatchStartedEvent started = std::get<MatchStartedEvent>(out[0].event);
+  MatchStartedEvent started = std::get<MatchStartedEvent>(roomWide[0].event);
   CHECK_EQ(started.mysteryRounds, 3);
   CHECK_EQ(started.wyrRounds, 3);
-  PhaseEvent phase = std::get<PhaseEvent>(out[2].event);
+  PhaseEvent phase = std::get<PhaseEvent>(roomWide[2].event);
   CHECK_EQ(phase.phase, Phase::MysteryDiscuss);
   CHECK_EQ(phase.round, 1);
   CHECK(phase.deadlineMs == std::optional<std::int64_t>(T0 + 100'000));
@@ -190,12 +174,12 @@ TEST(match_over_sends_leaderboard_ties_are_co_champions) {
   Setup s(4);
   s.room.startMatch(s.host(), T0);
   s.room.takeOutbox();
-  nextUntil(s, Phase::MatchOver);
+  s.room.endMatch(s.host());  // Before anyone has scored.
 
   std::vector<MatchOverEvent> overs = eventsOf<MatchOverEvent>(s.room.takeOutbox());
   CHECK_EQ(overs.size(), std::size_t(1));
   if (overs.empty()) return;
-  // No scoring yet, so everyone has 0 and all four tie.
+  // Everyone has 0, so all four tie.
   CHECK_EQ(overs[0].winnerIds.size(), std::size_t(4));
   CHECK_EQ(overs[0].leaderboard.size(), std::size_t(4));
 }
@@ -236,10 +220,13 @@ TEST(end_match_needs_host_and_running_match) {
 TEST(too_few_connected_mid_round_does_not_pause) {
   Setup s(4);
   s.room.startMatch(s.host(), T0);
-  s.room.disconnect(s.id(2));
-  s.room.disconnect(s.id(3));
+  // Two non-impostors leave (the impostor leaving would void the round).
+  std::vector<std::string> innocents = nonImpostors(s.room.takeOutbox());
+  s.room.disconnect(innocents[1], T0);
+  s.room.disconnect(innocents[2], T0);
+  CHECK_EQ(s.room.connectedCount(), std::size_t(2));
   CHECK_EQ(s.room.phase(), Phase::MysteryDiscuss);
-  s.room.next(s.host(), T0);
+  s.room.next(s.room.hostId(), T0);  // Host may have been one who left.
   CHECK_EQ(s.room.phase(), Phase::MysteryVote);
 }
 
@@ -247,8 +234,8 @@ TEST(too_few_connected_at_round_start_pauses) {
   Setup s(4);
   s.room.startMatch(s.host(), T0);
   nextUntil(s, Phase::MysteryReveal);
-  s.room.disconnect(s.id(2));
-  s.room.disconnect(s.id(3));
+  s.room.disconnect(s.id(2), T0);
+  s.room.disconnect(s.id(3), T0);
   s.room.next(s.host(), T0);
 
   CHECK_EQ(s.room.phase(), Phase::Paused);
@@ -264,8 +251,8 @@ TEST(rejoin_resumes_paused_match) {
   Setup s(4);
   s.room.startMatch(s.host(), T0);
   nextUntil(s, Phase::MysteryReveal);
-  s.room.disconnect(s.id(2));
-  s.room.disconnect(s.id(3));
+  s.room.disconnect(s.id(2), T0);
+  s.room.disconnect(s.id(3), T0);
   s.room.next(s.host(), T0);
   CHECK_EQ(s.room.phase(), Phase::Paused);
 
@@ -283,8 +270,8 @@ TEST(pause_before_wyr_resumes_into_wyr) {
     s.room.next(s.host(), T0);  // leave discuss
     nextUntil(s, Phase::MysteryReveal);
   }
-  s.room.disconnect(s.id(2));
-  s.room.disconnect(s.id(3));
+  s.room.disconnect(s.id(2), T0);
+  s.room.disconnect(s.id(3), T0);
   s.room.next(s.host(), T0);
   CHECK_EQ(s.room.phase(), Phase::Paused);
   CHECK_EQ(s.room.game(), Game::Wyr);
@@ -298,8 +285,8 @@ TEST(host_can_end_match_while_paused) {
   Setup s(4);
   s.room.startMatch(s.host(), T0);
   nextUntil(s, Phase::MysteryReveal);
-  s.room.disconnect(s.id(2));
-  s.room.disconnect(s.id(3));
+  s.room.disconnect(s.id(2), T0);
+  s.room.disconnect(s.id(3), T0);
   s.room.next(s.host(), T0);
   CHECK_EQ(s.room.endMatch(s.host()), std::string(""));
   CHECK_EQ(s.room.phase(), Phase::MatchOver);
@@ -310,7 +297,7 @@ TEST(host_can_end_match_while_paused) {
 TEST(joins_and_disconnects_broadcast_room_state) {
   Room room("ABCD", false, 42);
   JoinResult ann = room.addPlayer("Ann");
-  room.disconnect(ann.playerId);
+  room.disconnect(ann.playerId, T0);
   std::vector<Outgoing> out = room.takeOutbox();
   CHECK_EQ(out.size(), std::size_t(2));
   CHECK_EQ(eventsOf<RoomStateEvent>(out).size(), std::size_t(2));
@@ -321,7 +308,7 @@ TEST(joins_and_disconnects_broadcast_room_state) {
 TEST(rejoin_sends_current_phase_to_that_player) {
   Setup s(4);
   s.room.startMatch(s.host(), T0);
-  s.room.disconnect(s.id(1));
+  s.room.disconnect(s.id(1), T0);
   s.room.takeOutbox();
 
   s.room.rejoin(s.players[1].token, T0 + 5'000);
@@ -340,7 +327,7 @@ TEST(rejoin_sends_current_phase_to_that_player) {
 TEST(new_host_can_run_match_after_host_leaves) {
   Setup s(5);
   s.room.startMatch(s.host(), T0);
-  s.room.disconnect(s.host());
+  s.room.disconnect(s.host(), T0);
   CHECK_EQ(s.room.hostId(), s.id(1));
   CHECK_EQ(s.room.next(s.id(1), T0), std::string(""));
   CHECK_EQ(s.room.next(s.id(0), T0), std::string("not the host"));

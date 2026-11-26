@@ -2,10 +2,12 @@
 #include <cstdint>
 #include <optional>
 #include <random>
+#include <set>
 #include <string>
 #include <vector>
 
 #include "game/events.h"
+#include "game/mystery.h"
 
 namespace feast {
 
@@ -36,6 +38,18 @@ constexpr std::int64_t kVoteMs = 45'000;
 constexpr std::int64_t kGuessMs = 30'000;
 constexpr std::int64_t kChooseMs = 30'000;
 
+// One Mystery round, from setup to reveal.
+struct MysteryRoundState {
+  std::vector<std::string> playerIds;  // Dealt a word at setup ("in the round").
+  std::string impostorId;
+  std::string mainWord;
+  std::string impostorWord;
+  std::vector<Vote> votes;  // In the order cast.
+  std::optional<VoteResultEvent> voteResult;
+  std::optional<std::string> guess;
+  std::optional<RoundResultEvent> roundResult;
+};
+
 // One room's game state. No sockets: the network layer calls these methods,
 // sends what takeOutbox() returns, and calls tick() regularly so deadlines fire.
 // Times are Unix epoch milliseconds passed in by the caller, so tests control
@@ -55,12 +69,20 @@ class Room {
   // May resume a paused match.
   JoinResult rejoin(const std::string& token, std::int64_t nowMs);
 
-  // Socket closed. Unknown ids are ignored.
-  void disconnect(const std::string& playerId);
+  // Socket closed. Unknown ids are ignored. May end the current phase
+  // (e.g. the impostor leaving voids the round).
+  void disconnect(const std::string& playerId, std::int64_t nowMs);
 
   std::string startMatch(const std::string& playerId, std::int64_t nowMs);  // START_MATCH
   std::string next(const std::string& playerId, std::int64_t nowMs);        // NEXT
   std::string endMatch(const std::string& playerId);                        // END_MATCH
+
+  // CAST_VOTE. targetId nullopt = Skip.
+  std::string castVote(const std::string& playerId, const std::optional<std::string>& targetId,
+                       std::int64_t nowMs);
+  // GUESS_WORD
+  std::string guessWord(const std::string& playerId, const std::string& rawWord,
+                        std::int64_t nowMs);
 
   // Ends the current phase if its deadline has passed.
   void tick(std::int64_t nowMs);
@@ -84,11 +106,23 @@ class Room {
   void reassignHostIfNeeded();
   std::string makeToken();
 
+  // Phase engine (room.cpp).
   void advance(std::int64_t nowMs);
   void startRound(Game game, int round, std::int64_t nowMs);
+  void beginRound(std::int64_t nowMs);
   void enterPhase(Phase phase, std::int64_t nowMs);
   void finishMatch();
   void returnToLobby();
+
+  // Mystery (room_mystery.cpp).
+  void setupMysteryRound();
+  void finishVote(std::int64_t nowMs);
+  void finishMysteryRound(bool voided, std::int64_t nowMs);
+  void mysteryOnDisconnect(const std::string& playerId, std::int64_t nowMs);
+  void mysteryCatchUp(const std::string& playerId);
+  bool inMysteryRound(const std::string& playerId) const;
+  bool allConnectedVoted() const;
+  std::vector<std::string> voterIds() const;
 
   void emit(Event event, std::string toPlayerId = "");
   void emitRoomState();
@@ -105,6 +139,11 @@ class Room {
   Game game_ = Game::None;
   int round_ = 0;
   std::optional<std::int64_t> deadlineMs_;
+
+  MysteryRoundState mystery_;
+  std::vector<std::string> pastImpostors_;  // This match.
+  std::set<std::size_t> usedWordPairs_;     // This room; cleared when all are used.
+  std::optional<MatchOverEvent> matchOver_;  // Kept for rejoin catch-up.
 
   std::vector<Outgoing> outbox_;
 };
