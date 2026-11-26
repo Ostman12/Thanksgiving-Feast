@@ -2,7 +2,11 @@
 
 Thanksgiving party game for 4-10 players (Mystery, then Would You Rather Extreme). C++ WebSocket server (authoritative)
 plus a plain HTML/JS client served by the same server.
-Protocol: docs/protocol.md. Rules: docs/rules.md.
+Protocol: docs/protocol.md. Rules: docs/rules.md. Design decisions: docs/design.md.
+
+Decided: Crow + standalone Asio + nlohmann/json (via CMake FetchContent); one
+mutex + one timer thread; phones are players at `/`, a laptop display at
+`/display` sends WATCH_ROOM; host stays a phone player. See docs/design.md.
 Game night: Saturday Nov 28, 2026. Stability beats features.
 
 ## Hard rules
