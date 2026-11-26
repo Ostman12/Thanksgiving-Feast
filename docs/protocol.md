@@ -42,6 +42,7 @@ to `mystery_reveal`.
 | `CREATE_ROOM`   | `name`                     | Sender is not in a room. Name valid (rules.md).                                                              |
 | `JOIN_ROOM`     | `code`, `name`             | Sender not in a room. Room exists, is in `lobby`, has < 10 players, name not taken.                          |
 | `REJOIN`        | `code`, `token`            | Sender not in a room. Token matches a player in that room. Any phase.                                        |
+| `WATCH_ROOM`    | `code`                     | Sender not in a room. Room exists. Any phase. Makes this socket a display (see Display), not a player.        |
 | `START_MATCH`   | `{}`                       | `lobby`, host only, 4+ connected players (3+ in test mode).                                                  |
 | `CAST_VOTE`     | `targetId` (string or `null`) | `mystery_vote`, sender is in the round, has not voted. `null` means Skip. A string must be a player in the round who is not the sender. |
 | `GUESS_WORD`    | `word`                     | `mystery_guess`, sender is the impostor, has not guessed. Word is 1–30 characters after trimming.            |
@@ -51,9 +52,13 @@ to `mystery_reveal`.
 
 `CAST_VOTE` with the `targetId` key missing is an `ERROR`; only an explicit `null` is Skip.
 
+A socket that is a player or a display counts as "in a room". A display that sends any
+message other than `WATCH_ROOM` gets `ERROR` `"not a player"`.
+
 ## Server → client
 
-**Bold** "Sent to" cells carry secrets. They go to one player only. Nothing sent to the
+**Bold** "Sent to" cells carry secrets. They go to one player only. "Everyone" means every
+player socket and every display socket in the room. Nothing sent to the
 whole room may contain a word or the impostor's identity before the reveal (except a
 caught impostor in `VOTE_RESULT`), and no one's vote or Would You Rather choice before
 its result message.
@@ -88,9 +93,25 @@ Scores live in `ROOM_STATE.players[].score`; there is no separate `SCORES` messa
 This matters most on phones: iOS Safari and Chrome on Android drop WebSockets when the
 screen locks or the browser goes to the background.
 
+## Display
+
+A display is a watch-only screen, such as a laptop showing the game to the whole table. It
+opens `/display`, enters the room code, and sends `WATCH_ROOM`.
+
+1. The server answers with `ROOM_STATE`, the current `PHASE`, and any room-wide messages
+   needed to rebuild the current screen (`VOTE_RESULT`, `WYR_PROMPT`, results). It never
+   receives `JOINED`, `YOUR_WORD`, or anything else marked **bold** above.
+2. After that, it receives every message sent to "Everyone".
+3. A display is not a player. It has no id, no token, and no score, and it does not count
+   toward the player minimum, the 10-player cap, or "every connected player has acted".
+4. When its socket closes, the client reconnects and sends `WATCH_ROOM` again. No token is
+   needed because a display holds no secrets.
+5. A room can have any number of displays. If the room is deleted, displays get `ERROR`
+   `"room not found"` on their next `WATCH_ROOM`.
+
 ## Error reasons (examples, not exhaustive)
 
 `"not in a room"`, `"room not found"`, `"room is full"`, `"name taken"`,
 `"match already started"`, `"not the host"`, `"not enough players"`, `"wrong phase"`,
 `"already submitted"`, `"cannot vote for yourself"`, `"not the impostor"`,
-`"invalid message"`.
+`"not a player"`, `"invalid message"`.
