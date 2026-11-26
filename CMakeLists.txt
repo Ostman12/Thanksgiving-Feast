@@ -18,6 +18,8 @@ add_library(feast_game
   src/game/room_mystery.cpp
   src/game/mystery.cpp
   src/game/content.cpp
+  src/game/room_wyr.cpp
+  src/game/wyr.cpp
 )
 target_include_directories(feast_game PUBLIC src)
 
@@ -29,6 +31,7 @@ add_executable(feast_tests
   tests/test_room.cpp
   tests/test_phases.cpp
   tests/test_mystery.cpp
+  tests/test_wyr.cpp
 )
 target_link_libraries(feast_tests PRIVATE feast_game)
 add_test(NAME feast_tests COMMAND feast_tests)

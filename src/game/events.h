@@ -113,8 +113,31 @@ struct RoundResultEvent {
   std::vector<PointsDelta> points;
 };
 
+// One player's Would You Rather submission. 'A' or 'B'.
+struct WyrChoice {
+  std::string playerId;
+  char choice = 'A';
+  char prediction = 'A';
+};
+
+// WYR_PROMPT
+struct WyrPromptEvent {
+  std::string optionA;
+  std::string optionB;
+};
+
+// WYR_RESULT
+struct WyrResultEvent {
+  std::vector<WyrChoice> choices;  // Join order.
+  int countA = 0;
+  int countB = 0;
+  std::optional<char> majority;  // nullopt on an even split
+  std::vector<PointsDelta> points;
+};
+
 using Event = std::variant<RoomStateEvent, MatchStartedEvent, PhaseEvent, MatchOverEvent,
-                           YourWordEvent, SubmittedEvent, VoteResultEvent, RoundResultEvent>;
+                           YourWordEvent, SubmittedEvent, VoteResultEvent, RoundResultEvent,
+                           WyrPromptEvent, WyrResultEvent>;
 
 struct Outgoing {
   std::string toPlayerId;  // Empty means everyone in the room.

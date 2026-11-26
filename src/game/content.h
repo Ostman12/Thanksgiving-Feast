@@ -13,4 +13,11 @@ struct WordPair {
 
 const std::vector<WordPair>& wordPairs();
 
+struct WyrPrompt {
+  const char* optionA;
+  const char* optionB;
+};
+
+const std::vector<WyrPrompt>& wyrPrompts();
+
 }  // namespace feast

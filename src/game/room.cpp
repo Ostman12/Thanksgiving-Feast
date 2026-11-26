@@ -117,6 +117,7 @@ JoinResult Room::rejoin(const std::string& token, std::int64_t nowMs) {
   // The rejoining player missed earlier messages: send what they need to
   // rebuild their screen, to them only, then the current PHASE.
   mysteryCatchUp(result.playerId);
+  wyrCatchUp(result.playerId);
   if (phase_ == Phase::MatchOver && matchOver_) emit(*matchOver_, result.playerId);
   emitPhase(result.playerId);
   return result;
@@ -129,6 +130,7 @@ void Room::disconnect(const std::string& playerId, std::int64_t nowMs) {
   reassignHostIfNeeded();
   emitRoomState();
   mysteryOnDisconnect(playerId, nowMs);
+  wyrOnDisconnect(nowMs);
 }
 
 const Player* Room::findPlayer(const std::string& playerId) const {
@@ -231,7 +233,7 @@ void Room::advance(std::int64_t nowMs) {
       }
       break;
     case Phase::WyrChoose:
-      enterPhase(Phase::WyrReveal, nowMs);
+      finishWyrRound(nowMs);
       break;
     case Phase::WyrReveal:
       if (round_ < kWyrRounds) {
@@ -268,6 +270,7 @@ void Room::startRound(Game game, int round, std::int64_t nowMs) {
 // phase. Used by startRound and when a paused match resumes.
 void Room::beginRound(std::int64_t nowMs) {
   if (game_ == Game::Mystery) setupMysteryRound();
+  if (game_ == Game::Wyr) setupWyrRound();
   enterPhase(firstPhaseOf(game_), nowMs);
 }
 

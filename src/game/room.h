@@ -8,6 +8,7 @@
 
 #include "game/events.h"
 #include "game/mystery.h"
+#include "game/wyr.h"
 
 namespace feast {
 
@@ -50,6 +51,13 @@ struct MysteryRoundState {
   std::optional<RoundResultEvent> roundResult;
 };
 
+// One Would You Rather prompt, from choose to reveal.
+struct WyrRoundState {
+  WyrPromptEvent prompt;
+  std::vector<WyrChoice> choices;  // In the order submitted.
+  std::optional<WyrResultEvent> result;
+};
+
 // One room's game state. No sockets: the network layer calls these methods,
 // sends what takeOutbox() returns, and calls tick() regularly so deadlines fire.
 // Times are Unix epoch milliseconds passed in by the caller, so tests control
@@ -83,6 +91,9 @@ class Room {
   // GUESS_WORD
   std::string guessWord(const std::string& playerId, const std::string& rawWord,
                         std::int64_t nowMs);
+  // SUBMIT_CHOICE. choice and prediction must each be exactly "A" or "B".
+  std::string submitChoice(const std::string& playerId, const std::string& choice,
+                           const std::string& prediction, std::int64_t nowMs);
 
   // Ends the current phase if its deadline has passed.
   void tick(std::int64_t nowMs);
@@ -124,6 +135,14 @@ class Room {
   bool allConnectedVoted() const;
   std::vector<std::string> voterIds() const;
 
+  // Would You Rather (room_wyr.cpp).
+  void setupWyrRound();
+  void finishWyrRound(std::int64_t nowMs);
+  void wyrOnDisconnect(std::int64_t nowMs);
+  void wyrCatchUp(const std::string& playerId);
+  bool allConnectedChose() const;
+  std::vector<std::string> chooserIds() const;
+
   void emit(Event event, std::string toPlayerId = "");
   void emitRoomState();
   void emitPhase(std::string toPlayerId = "");
@@ -143,6 +162,8 @@ class Room {
   MysteryRoundState mystery_;
   std::vector<std::string> pastImpostors_;  // This match.
   std::set<std::size_t> usedWordPairs_;     // This room; cleared when all are used.
+  WyrRoundState wyr_;
+  std::set<std::size_t> usedPrompts_;       // This room; cleared when all are used.
   std::optional<MatchOverEvent> matchOver_;  // Kept for rejoin catch-up.
 
   std::vector<Outgoing> outbox_;
