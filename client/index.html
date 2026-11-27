@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#9b1b30">
+  <title>Feast Mode</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="phone">
+  <div id="banner" class="banner" hidden>Reconnecting…</div>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <!-- Round number, countdown, my score: shown during a match. -->
+  <header id="round-bar" class="round-bar" hidden>
+    <span id="round-label"></span>
+    <span id="countdown" class="countdown"></span>
+  </header>
+
+  <main>
+    <!-- Join or create -->
+    <section data-screen="join" hidden>
+      <h1 class="title">🦃 Feast Mode</h1>
+      <label class="field">Your name
+        <input id="name-input" maxlength="16" autocomplete="nickname" enterkeyhint="next">
+      </label>
+      <label class="field">Room code
+        <input id="code-input" maxlength="4" autocomplete="off" autocapitalize="characters"
+               spellcheck="false" enterkeyhint="go" class="code-input">
+      </label>
+      <button id="join-btn" class="btn primary">Join room</button>
+      <p class="muted center">or</p>
+      <button id="create-btn" class="btn">Create a new room</button>
+    </section>
+
+    <section data-screen="connecting" hidden>
+      <p class="big center">Connecting…</p>
+    </section>
+
+    <section data-screen="lobby" hidden>
+      <p class="muted center">Room code</p>
+      <p id="lobby-code" class="room-code"></p>
+      <p class="center">You're in! 🎉</p>
+      <ul id="lobby-players" class="players"></ul>
+      <div id="lobby-host"></div>
+    </section>
+
+    <!-- Mystery: my secret word, shown in discuss, vote and guess. -->
+    <div id="word-card" class="word-card" hidden>
+      <button id="word-btn" class="word-btn blurred" aria-label="Tap to show or hide your word">
+        <span id="word-role" class="word-role"></span>
+        <span id="word-text" class="word-text"></span>
+      </button>
+      <p class="muted center small-note">Tap to show / hide</p>
+    </div>
+
+    <section data-screen="mystery_discuss" hidden>
+      <h2>🗣️ Clues</h2>
+      <p>Take turns saying <b>one clue</b> about your word out loud. Then discuss who the
+        impostor is!</p>
+    </section>
+
+    <section data-screen="mystery_vote" hidden>
+      <h2>🕵️ Vote</h2>
+      <div id="vote-body"></div>
+    </section>
+
+    <section data-screen="mystery_guess" hidden>
+      <div id="guess-result"></div>
+      <div id="guess-form" hidden>
+        <h2>🎯 Guess the word</h2>
+        <p>What is everyone else's word?</p>
+        <input id="guess-input" maxlength="30" autocomplete="off" enterkeyhint="send" class="wide">
+        <button id="guess-btn" class="btn primary">Send guess</button>
+      </div>
+      <div id="guess-wait"></div>
+    </section>
+
+    <section data-screen="mystery_reveal" hidden>
+      <div id="mreveal-body"></div>
+    </section>
+
+    <section data-screen="wyr_choose" hidden>
+      <h2>🤔 Would you rather…</h2>
+      <div id="choose-body">
+        <p class="step">1. What would <b>you</b> pick?</p>
+        <div class="ab">
+          <button class="btn option" data-pick="choice" data-option="A"></button>
+          <button class="btn option" data-pick="choice" data-option="B"></button>
+        </div>
+        <p class="step">2. What will <b>most people</b> pick?</p>
+        <div class="ab">
+          <button class="btn option" data-pick="prediction" data-option="A"></button>
+          <button class="btn option" data-pick="prediction" data-option="B"></button>
+        </div>
+        <button id="choice-btn" class="btn primary">Send</button>
+      </div>
+      <div id="choose-done"></div>
+    </section>
+
+    <section data-screen="wyr_reveal" hidden>
+      <div id="wreveal-body"></div>
+    </section>
+
+    <section data-screen="paused" hidden>
+      <h2>⏸️ Paused</h2>
+      <p>Waiting for players to reconnect. At least 3 need to be here to play the next round.</p>
+    </section>
+
+    <section data-screen="match_over" hidden>
+      <div id="over-body"></div>
+    </section>
+
+    <!-- Host controls (the room creator, or whoever took over) -->
+    <div id="host-bar" class="host-bar" hidden>
+      <button id="next-btn" class="btn primary"></button>
+      <button id="end-btn" class="btn subtle">End match</button>
+    </div>
+  </main>
+
+  <script src="common.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

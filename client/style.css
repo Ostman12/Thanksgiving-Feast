@@ -1,0 +1,177 @@
+/* Feast Mode. Mobile-first (portrait, ~375px); body.display scales up for the
+   laptop. Colors are set once here (docs/design.md: warm autumn theme). */
+
+:root {
+  --cream: #fff8ee;
+  --card: #ffffff;
+  --orange: #d9622b;
+  --cranberry: #9b1b30;
+  --brown: #5a3a22;
+  --muted: #8a7462;
+  --line: #ead9c4;
+  --ok: #2e7d32;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--cream);
+  color: var(--brown);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 18px;
+  line-height: 1.4;
+  -webkit-text-size-adjust: 100%;
+}
+
+main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+}
+
+[hidden] { display: none !important; }
+
+h1, h2, h3 { color: var(--cranberry); margin: 0.6em 0 0.4em; }
+.title { font-size: 2.2rem; text-align: center; }
+.center { text-align: center; }
+.muted { color: var(--muted); }
+.big { font-size: 1.35rem; font-weight: 600; }
+.small-note { font-size: 0.85rem; margin-top: 4px; }
+
+/* ---- form fields: 16px+ so iOS doesn't zoom in */
+.field { display: block; margin: 14px 0; font-weight: 600; }
+input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px;
+  font-size: 1.15rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--brown);
+}
+input:focus { outline: none; border-color: var(--orange); }
+.code-input { text-transform: uppercase; letter-spacing: 0.3em; font-size: 1.6rem; text-align: center; }
+input.wide { margin-bottom: 12px; }
+
+/* ---- buttons: at least 48px tall, no hover-only behavior */
+.btn {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  margin: 10px 0;
+  padding: 12px 16px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--brown);
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.08s ease;
+}
+.btn:active { transform: scale(0.98); }
+.btn.primary { background: var(--orange); border-color: var(--orange); color: #fff; }
+.btn.subtle { background: transparent; color: var(--muted); }
+.btn.armed { background: var(--cranberry); border-color: var(--cranberry); color: #fff; }
+.btn:disabled { opacity: 0.5; cursor: default; transform: none; }
+.btn.option.selected { border-color: var(--orange); background: #fde7da; }
+
+.choices .btn { text-align: left; }
+.ab { display: grid; gap: 10px; }
+.step { font-weight: 600; margin: 18px 0 4px; }
+
+/* ---- banners */
+.banner {
+  position: sticky; top: 0; z-index: 10;
+  background: var(--cranberry); color: #fff;
+  text-align: center; padding: 8px; font-weight: 600;
+}
+.toast {
+  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom));
+  transform: translateX(-50%); z-index: 20;
+  max-width: 90vw; padding: 12px 18px;
+  background: var(--brown); color: #fff; border-radius: var(--radius);
+  font-weight: 600; text-align: center;
+}
+
+.round-bar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 16px; background: var(--brown); color: var(--cream);
+  font-weight: 600;
+}
+.countdown { font-variant-numeric: tabular-nums; }
+.countdown.urgent { color: #ffb199; }
+
+/* ---- lobby */
+.room-code {
+  font-size: 3.2rem; font-weight: 800; letter-spacing: 0.25em;
+  text-align: center; color: var(--cranberry); margin: 0;
+}
+.players { list-style: none; padding: 0; margin: 16px 0; }
+.players li {
+  padding: 10px 14px; margin: 6px 0;
+  background: var(--card); border: 2px solid var(--line); border-radius: var(--radius);
+}
+.players li.away { opacity: 0.5; }
+.players li.done { border-color: var(--ok); }
+
+/* ---- secret word: blurred until tapped (client only) */
+.word-card { margin: 12px 0; }
+.word-btn {
+  display: block; width: 100%; min-height: 110px;
+  padding: 16px; font: inherit; color: var(--brown);
+  background: var(--card); border: 3px dashed var(--orange); border-radius: var(--radius);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+/* .impostor is only set while the word is shown, so the card looks identical
+   on every phone while hidden. */
+.word-btn.impostor { border-color: var(--cranberry); }
+.word-role { display: block; font-size: 0.95rem; font-weight: 600; color: var(--muted); }
+.word-btn.impostor .word-role { color: var(--cranberry); }
+.word-text { display: block; font-size: 2rem; font-weight: 800; margin-top: 6px; }
+.word-btn.blurred .word-text { filter: blur(6px); }
+
+/* ---- results */
+.plain { padding-left: 1.2em; }
+.winner { font-weight: 700; color: var(--ok); }
+.leaderboard { padding-left: 1.6em; font-size: 1.15rem; }
+.leaderboard li { margin: 6px 0; }
+.leaderboard li.me { font-weight: 800; color: var(--cranberry); }
+
+.host-bar {
+  margin-top: 24px; padding-top: 12px;
+  border-top: 2px dashed var(--line);
+}
+
+/* ---- big-screen display */
+body.display { font-size: 24px; }
+body.display main { max-width: 1200px; }
+body.display .round-bar { font-size: 1.1rem; padding: 14px 28px; }
+body.display .countdown { font-size: 2.4rem; }
+body.display .room-code.huge { font-size: 9rem; }
+body.display .join-url { font-size: 1.6rem; margin-top: 24px; }
+body.display .huge-text { font-size: 2.6rem; font-weight: 800; color: var(--cranberry); margin: 24px 0 12px; }
+body.display .players.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+body.display .players.grid li { margin: 0; }
+body.display .big-ab { grid-template-columns: 1fr 1fr; gap: 24px; margin: 24px 0; }
+.option-card {
+  padding: 28px; font-size: 1.6rem; font-weight: 700; text-align: center;
+  background: var(--card); border: 3px solid var(--line); border-radius: var(--radius);
+}
+.option-card.winner { border-color: var(--ok); color: var(--brown); }
+.option-card .tag {
+  display: block; font-size: 1rem; color: #fff; background: var(--orange);
+  border-radius: 999px; padding: 4px 14px; margin: 0 auto 12px; width: fit-content;
+}
+.option-card small { display: block; font-size: 1rem; font-weight: 400; color: var(--muted); margin-top: 12px; }
+.leaderboard.big { font-size: 1.8rem; max-width: 700px; margin: 0 auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}

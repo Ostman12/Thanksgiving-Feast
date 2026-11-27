@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Feast Mode · Display</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="display">
+  <div id="banner" class="banner" hidden>Reconnecting…</div>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <header id="round-bar" class="round-bar" hidden>
+    <span id="round-label"></span>
+    <span id="countdown" class="countdown"></span>
+  </header>
+
+  <main>
+    <section data-screen="watch" hidden>
+      <h1 class="title">🦃 Feast Mode</h1>
+      <p class="center">Big-screen display. Create the room on your phone, then enter its code here.</p>
+      <label class="field">Room code
+        <input id="code-input" maxlength="4" autocomplete="off" autocapitalize="characters"
+               spellcheck="false" class="code-input">
+      </label>
+      <button id="watch-btn" class="btn primary">Show this room</button>
+    </section>
+
+    <section data-screen="connecting" hidden>
+      <p class="big center">Connecting…</p>
+    </section>
+
+    <section data-screen="lobby" hidden>
+      <p class="center join-url">Join at <b id="join-url"></b></p>
+      <p class="center muted">Room code</p>
+      <p id="lobby-code" class="room-code huge"></p>
+      <ul id="lobby-players" class="players grid"></ul>
+    </section>
+
+    <section data-screen="game" hidden>
+      <div id="game-body"></div>
+    </section>
+
+    <section data-screen="match_over" hidden>
+      <div id="over-body"></div>
+    </section>
+  </main>
+
+  <script src="common.js"></script>
+  <script src="display.js"></script>
+</body>
+</html>
