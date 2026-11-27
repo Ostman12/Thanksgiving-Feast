@@ -106,7 +106,7 @@ JoinResult Room::rejoin(const std::string& token, std::int64_t nowMs) {
 
   player->connected = true;
   player->disconnectedAtMs.reset();
-  reassignHostIfNeeded();
+  reassignHostIfNeeded(nowMs);
   result.playerId = player->id;
   result.token = player->token;
 
@@ -129,7 +129,7 @@ void Room::disconnect(const std::string& playerId, std::int64_t nowMs) {
   if (p == nullptr || !p->connected) return;
   p->connected = false;
   p->disconnectedAtMs = nowMs;
-  reassignHostIfNeeded();
+  reassignHostIfNeeded(nowMs);
   emitRoomState();
   mysteryOnDisconnect(playerId, nowMs);
   wyrOnDisconnect(nowMs);
@@ -157,18 +157,29 @@ Player* Room::findPlayerMutable(const std::string& playerId) {
   return nullptr;
 }
 
-// rules.md: if the host disconnects, host passes to the connected player who
-// joined earliest. If nobody is connected, the host stays as is until someone
-// comes back (then that player becomes host).
-void Room::reassignHostIfNeeded() {
+// rules.md: the creator (first to join) is host whenever connected. A host who
+// disconnects keeps it for kReconnectGraceMs; after that it passes to the
+// connected player who joined earliest. If nobody is connected, it stays put.
+// Returns true if the host changed.
+bool Room::reassignHostIfNeeded(std::int64_t nowMs) {
+  const std::string before = hostId_;
+  if (!players_.empty() && players_.front().connected) {
+    hostId_ = players_.front().id;
+    return hostId_ != before;
+  }
   const Player* host = findPlayer(hostId_);
-  if (host != nullptr && host->connected) return;
+  if (host != nullptr && (host->connected ||
+                          (host->disconnectedAtMs &&
+                           nowMs - *host->disconnectedAtMs < kReconnectGraceMs))) {
+    return false;
+  }
   for (const Player& p : players_) {  // players_ is in join order
     if (p.connected) {
       hostId_ = p.id;
-      return;
+      break;
     }
   }
+  return hostId_ != before;
 }
 
 std::string Room::makeToken() {
@@ -209,6 +220,7 @@ std::string Room::endMatch(const std::string& playerId) {
 }
 
 void Room::tick(std::int64_t nowMs) {
+  if (reassignHostIfNeeded(nowMs)) emitRoomState();  // A host's 20 s ran out.
   if (mysteryTick(nowMs)) return;  // Grace timers (rules.md Disconnects).
   if (deadlineMs_ && nowMs >= *deadlineMs_) advance(nowMs);
 }

@@ -88,7 +88,9 @@ TEST(ids_and_tokens_are_unique) {
   CHECK_EQ(tokens.size(), std::size_t(10));
 }
 
-TEST(host_passes_to_earliest_connected_player) {
+// rules.md: a disconnected host keeps host for 20 s, then it passes to the
+// connected player who joined earliest.
+TEST(host_passes_to_earliest_connected_player_after_20s) {
   Room room = makeRoom();
   JoinResult ann = room.addPlayer("Ann");
   JoinResult bob = room.addPlayer("Bob");
@@ -96,17 +98,54 @@ TEST(host_passes_to_earliest_connected_player) {
   room.disconnect(bob.playerId, 0);
   CHECK_EQ(room.hostId(), ann.playerId);  // non-host leaving changes nothing
   room.disconnect(ann.playerId, 0);
+  CHECK_EQ(room.hostId(), ann.playerId);  // still host during the 20 s
+  room.tick(19'999);
+  CHECK_EQ(room.hostId(), ann.playerId);
+  room.takeOutbox();
+  room.tick(20'000);
   CHECK_EQ(room.hostId(), cat.playerId);  // Bob is disconnected, so Cat
+  bool sentState = false;  // everyone is told who the new host is
+  for (const Outgoing& o : room.takeOutbox()) {
+    if (const RoomStateEvent* s = std::get_if<RoomStateEvent>(&o.event)) sentState = s->hostId == cat.playerId;
+  }
+  CHECK(sentState);
 }
 
-TEST(original_host_rejoining_does_not_take_host_back) {
+TEST(host_back_within_20s_never_loses_host) {
+  Room room = makeRoom();
+  JoinResult ann = room.addPlayer("Ann");
+  room.addPlayer("Bob");
+  room.disconnect(ann.playerId, 0);
+  room.tick(10'000);
+  CHECK(room.rejoin(ann.token, 15'000).ok());
+  room.tick(30'000);
+  CHECK_EQ(room.hostId(), ann.playerId);
+}
+
+TEST(creator_takes_host_back_on_rejoin) {
   Room room = makeRoom();
   JoinResult ann = room.addPlayer("Ann");
   JoinResult bob = room.addPlayer("Bob");
   room.disconnect(ann.playerId, 0);
+  room.tick(20'000);
   CHECK_EQ(room.hostId(), bob.playerId);
-  CHECK(room.rejoin(ann.token, 0).ok());
+  CHECK(room.rejoin(ann.token, 60'000).ok());
+  CHECK_EQ(room.hostId(), ann.playerId);
+}
+
+TEST(stand_in_host_also_gets_20s) {
+  Room room = makeRoom();
+  JoinResult ann = room.addPlayer("Ann");
+  JoinResult bob = room.addPlayer("Bob");
+  JoinResult cat = room.addPlayer("Cat");
+  room.disconnect(ann.playerId, 0);
+  room.tick(20'000);
   CHECK_EQ(room.hostId(), bob.playerId);
+  room.disconnect(bob.playerId, 30'000);
+  room.tick(49'999);
+  CHECK_EQ(room.hostId(), bob.playerId);
+  room.tick(50'000);
+  CHECK_EQ(room.hostId(), cat.playerId);
 }
 
 TEST(everyone_gone_then_first_back_becomes_host) {
@@ -116,8 +155,10 @@ TEST(everyone_gone_then_first_back_becomes_host) {
   room.disconnect(ann.playerId, 0);
   room.disconnect(bob.playerId, 0);
   CHECK_EQ(room.connectedCount(), std::size_t(0));
-  CHECK(room.rejoin(bob.token, 0).ok());
-  CHECK_EQ(room.hostId(), bob.playerId);
+  room.tick(60'000);
+  CHECK_EQ(room.hostId(), ann.playerId);  // nobody to pass it to: stays put
+  CHECK(room.rejoin(bob.token, 60'000).ok());
+  CHECK_EQ(room.hostId(), bob.playerId);  // Ann's 20 s are long gone
 }
 
 TEST(rejoin_restores_seat_and_score) {

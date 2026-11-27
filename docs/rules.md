@@ -10,8 +10,11 @@ this file disagree, the code is wrong (or this file gets updated first, on purpo
   `--test-mode`) needs 3+.
 - Names are 1–16 characters after trimming whitespace, and unique within a room
   (case-insensitive).
-- The player who creates the room is the host. If the host disconnects, host passes to
-  the connected player who joined earliest.
+- The player who creates the room is the host, and is host again whenever they are
+  connected (reconnecting gives it straight back).
+- If the host disconnects, they stay host for **20 seconds** so a locked phone doesn't
+  lose it (deadlines keep running meanwhile). After that, host passes to the connected
+  player who joined earliest, until the creator comes back.
 - Players can only join while the room is in the lobby. A disconnected player can rejoin
   at any time with their rejoin token (see Disconnects).
 

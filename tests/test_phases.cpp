@@ -328,7 +328,8 @@ TEST(new_host_can_run_match_after_host_leaves) {
   Setup s(5);
   s.room.startMatch(s.host(), T0);
   s.room.disconnect(s.host(), T0);
+  s.room.tick(T0 + 20'000);  // host's 20 s run out
   CHECK_EQ(s.room.hostId(), s.id(1));
-  CHECK_EQ(s.room.next(s.id(1), T0), std::string(""));
-  CHECK_EQ(s.room.next(s.id(0), T0), std::string("not the host"));
+  CHECK_EQ(s.room.next(s.id(1), T0 + 20'000), std::string(""));
+  CHECK_EQ(s.room.next(s.id(0), T0 + 20'000), std::string("not the host"));
 }

@@ -40,7 +40,8 @@ constexpr std::int64_t kVoteMs = 45'000;
 constexpr std::int64_t kGuessMs = 30'000;
 constexpr std::int64_t kChooseMs = 30'000;
 // rules.md: how long a disconnected impostor has to come back before the
-// round is void, and how long the vote keeps waiting for anyone who left.
+// round is void, how long the vote keeps waiting for anyone who left, and how
+// long a disconnected host keeps host.
 constexpr std::int64_t kReconnectGraceMs = 20'000;
 
 // One Mystery round, from setup to reveal.
@@ -122,7 +123,7 @@ class Room {
 
  private:
   Player* findPlayerMutable(const std::string& playerId);
-  void reassignHostIfNeeded();
+  bool reassignHostIfNeeded(std::int64_t nowMs);
   std::string makeToken();
 
   // Phase engine (room.cpp).
