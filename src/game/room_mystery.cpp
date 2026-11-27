@@ -67,7 +67,7 @@ std::string Room::castVote(const std::string& playerId, const std::optional<std:
 
   mystery_.votes.push_back({playerId, targetId});
   emit(SubmittedEvent{voterIds()});
-  if (allConnectedVoted()) advance(nowMs);
+  if (allDueVoted(nowMs)) advance(nowMs);
   return "";
 }
 
@@ -89,6 +89,13 @@ std::string Room::guessWord(const std::string& playerId, const std::string& rawW
 
 // End of the vote phase: tally, tell everyone, then the impostor's guess.
 void Room::finishVote(std::int64_t nowMs) {
+  const Player* impostor = findPlayer(mystery_.impostorId);
+  if (impostor == nullptr || !impostor->connected) {
+    // The vote ended (deadline or host Next) while the impostor was still
+    // away, inside their grace time. No vote result without them: void.
+    finishMysteryRound(true, nowMs);
+    return;
+  }
   VoteTally tally = tallyVotes(mystery_.votes, mystery_.impostorId);
   VoteResultEvent result{mystery_.votes, tally.accusedId, tally.caught};
   mystery_.voteResult = result;
@@ -121,23 +128,31 @@ void Room::finishMysteryRound(bool voided, std::int64_t nowMs) {
   enterPhase(Phase::MysteryReveal, nowMs);  // ROOM_STATE carries the new scores.
 }
 
-// rules.md Disconnects, Mystery part.
+// rules.md Disconnects, Mystery part. During discuss and vote nothing happens
+// right away: the player has kReconnectGraceMs to come back (see mysteryTick).
 void Room::mysteryOnDisconnect(const std::string& playerId, std::int64_t nowMs) {
-  switch (phase_) {
-    case Phase::MysteryDiscuss:
-    case Phase::MysteryVote:
-      if (playerId == mystery_.impostorId) {
-        finishMysteryRound(true, nowMs);  // Void: skip straight to the reveal.
-      } else if (phase_ == Phase::MysteryVote && allConnectedVoted()) {
-        advance(nowMs);  // Was only waiting on the player who left.
-      }
-      break;
-    case Phase::MysteryGuess:
-      if (playerId == mystery_.impostorId) advance(nowMs);  // Counts as no guess.
-      break;
-    default:
-      break;
+  if (phase_ == Phase::MysteryGuess && playerId == mystery_.impostorId) {
+    advance(nowMs);  // Counts as no guess.
   }
+}
+
+// Called from tick(), before deadlines. Returns true if it changed the phase.
+bool Room::mysteryTick(std::int64_t nowMs) {
+  if (phase_ != Phase::MysteryDiscuss && phase_ != Phase::MysteryVote) return false;
+
+  // Impostor gone longer than the grace time: void the round.
+  const Player* impostor = findPlayer(mystery_.impostorId);
+  if (impostor != nullptr && !impostor->connected && impostor->disconnectedAtMs &&
+      nowMs - *impostor->disconnectedAtMs >= kReconnectGraceMs) {
+    finishMysteryRound(true, nowMs);
+    return true;
+  }
+  // Someone's grace ran out and they were the only vote still missing.
+  if (phase_ == Phase::MysteryVote && allDueVoted(nowMs)) {
+    advance(nowMs);
+    return true;
+  }
+  return false;
 }
 
 // What a rejoining player needs to rebuild a Mystery screen. Sent to them only.
@@ -162,12 +177,16 @@ bool Room::inMysteryRound(const std::string& playerId) const {
   return contains(mystery_.playerIds, playerId);
 }
 
-// rules.md: the vote ends when every connected player in the round has voted.
-bool Room::allConnectedVoted() const {
+// rules.md: the vote ends when every round player who is still due has voted.
+// Due = connected, or disconnected less than kReconnectGraceMs ago. Waiting on
+// every recent leaver, not just the impostor, keeps the wait from naming them.
+bool Room::allDueVoted(std::int64_t nowMs) const {
   std::vector<std::string> voted = voterIds();
   for (const std::string& id : mystery_.playerIds) {
     const Player* p = findPlayer(id);
-    if (p != nullptr && p->connected && !contains(voted, id)) return false;
+    if (p == nullptr || contains(voted, id)) continue;
+    bool inGrace = p->disconnectedAtMs && nowMs - *p->disconnectedAtMs < kReconnectGraceMs;
+    if (p->connected || inGrace) return false;
   }
   return true;
 }

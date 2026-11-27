@@ -23,8 +23,8 @@ milliseconds.
 | Phase             | Game    | Deadline | Ends when                                                              |
 |-------------------|---------|----------|------------------------------------------------------------------------|
 | `lobby`           | none    | none     | host sends `START_MATCH`                                               |
-| `mystery_discuss` | mystery | 100 s    | deadline or host `NEXT`                                                |
-| `mystery_vote`    | mystery | 45 s     | all connected round players voted, deadline, or host `NEXT`            |
+| `mystery_discuss` | mystery | 100 s    | deadline, host `NEXT`, or round void                                   |
+| `mystery_vote`    | mystery | 45 s     | all due round players voted (see below), deadline, host `NEXT`, or round void |
 | `mystery_guess`   | mystery | 30 s     | impostor guessed, impostor disconnected, deadline, or host `NEXT`      |
 | `mystery_reveal`  | mystery | none     | host `NEXT`                                                            |
 | `wyr_choose`      | wyr     | 30 s     | all connected players submitted, deadline, or host `NEXT`              |
@@ -32,8 +32,13 @@ milliseconds.
 | `paused`          | either  | none     | 3+ players connected again (resumes), or host `END_MATCH`              |
 | `match_over`      | none    | none     | host `NEXT` returns everyone to `lobby` with scores reset              |
 
-If the impostor disconnects before `mystery_guess`, the round is void and skips straight
-to `mystery_reveal`.
+In `mystery_vote`, a round player is due a vote if they are connected or disconnected less
+than 20 s ago.
+
+If the impostor disconnects before `mystery_guess`, they have 20 s to `REJOIN`. If they
+don't, or `mystery_vote` ends while they are still away, the round is void
+(`ROUND_RESULT.void` is `true`) and skips straight to `mystery_reveal`. Host `NEXT` from a
+void reveal replays the **same** `round` number with new words and a new impostor.
 
 ## Client → server
 

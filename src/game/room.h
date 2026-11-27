@@ -18,6 +18,7 @@ struct Player {
   std::string token;  // Secret. Only ever sent to this player (JOINED).
   int score = 0;
   bool connected = true;
+  std::optional<std::int64_t> disconnectedAtMs;  // Set while disconnected.
 };
 
 struct JoinResult {
@@ -38,6 +39,9 @@ constexpr std::int64_t kDiscussMs = 100'000;
 constexpr std::int64_t kVoteMs = 45'000;
 constexpr std::int64_t kGuessMs = 30'000;
 constexpr std::int64_t kChooseMs = 30'000;
+// rules.md: how long a disconnected impostor has to come back before the
+// round is void, and how long the vote keeps waiting for anyone who left.
+constexpr std::int64_t kReconnectGraceMs = 20'000;
 
 // One Mystery round, from setup to reveal.
 struct MysteryRoundState {
@@ -134,9 +138,10 @@ class Room {
   void finishVote(std::int64_t nowMs);
   void finishMysteryRound(bool voided, std::int64_t nowMs);
   void mysteryOnDisconnect(const std::string& playerId, std::int64_t nowMs);
+  bool mysteryTick(std::int64_t nowMs);
   void mysteryCatchUp(const std::string& playerId);
   bool inMysteryRound(const std::string& playerId) const;
-  bool allConnectedVoted() const;
+  bool allDueVoted(std::int64_t nowMs) const;
   std::vector<std::string> voterIds() const;
 
   // Would You Rather (room_wyr.cpp).

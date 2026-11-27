@@ -28,6 +28,9 @@ Scores start at 0 and carry across every round and both games.
 
 - Phases where players act (vote, guess, choose) end when **every connected player who is
   still due an action has acted**, or when the deadline passes, whichever comes first.
+- **Vote phase only:** a player who disconnected less than 20 seconds ago still counts as
+  due. Otherwise a vote stuck waiting on one missing player would show everyone who the
+  impostor is (see Disconnects).
 - The discuss phase has nothing to submit but still has a deadline.
 - Reveal phases have no deadline. The host taps **Next** to advance.
 - The host can also tap **Next** during any phase to end it early (fallback if a timer
@@ -41,7 +44,8 @@ Each round:
 
 1. **Setup.** The server picks an unused word pair (main word, impostor word) and picks one
    random connected player as the impostor. No player is the impostor twice in a match
-   unless every player has already been the impostor once.
+   unless every player has already been the impostor once. (The impostor of a void round
+   counts as having had their turn.)
 2. **Words.** Each player privately receives their word. **The impostor is told they are
    the impostor** and receives the impostor word. Non-impostors receive the main word and
    are told they are not the impostor.
@@ -112,8 +116,11 @@ The game continues without disconnected players and adjusts:
 
 - A disconnected player is marked `connected: false` in room state. They keep their score.
 - Phases stop waiting for disconnected players (see Phase advancement).
-- **Mystery, impostor disconnects before the vote result:** the round is void. No points,
-  the words are revealed, and play moves to the next round.
+- **Mystery, impostor disconnects before the vote result:** they have **20 seconds to
+  reconnect**, and if they do, the round carries on. If they don't (or the vote ends while
+  they are still away), the round is void: no points, and the reveal shows both words.
+  When the host taps Next, **the same round is played again** with new words and a new
+  impostor, so a void round does not use up one of the 3 rounds.
 - **Mystery, impostor disconnects during the guess phase:** counts as no guess. Points
   from the vote result still apply.
 - **Mystery, non-impostor disconnects:** they stay in the round. Votes for them still

@@ -105,6 +105,7 @@ JoinResult Room::rejoin(const std::string& token, std::int64_t nowMs) {
   }
 
   player->connected = true;
+  player->disconnectedAtMs.reset();
   reassignHostIfNeeded();
   result.playerId = player->id;
   result.token = player->token;
@@ -125,8 +126,9 @@ JoinResult Room::rejoin(const std::string& token, std::int64_t nowMs) {
 
 void Room::disconnect(const std::string& playerId, std::int64_t nowMs) {
   Player* p = findPlayerMutable(playerId);
-  if (p == nullptr) return;
+  if (p == nullptr || !p->connected) return;
   p->connected = false;
+  p->disconnectedAtMs = nowMs;
   reassignHostIfNeeded();
   emitRoomState();
   mysteryOnDisconnect(playerId, nowMs);
@@ -207,6 +209,7 @@ std::string Room::endMatch(const std::string& playerId) {
 }
 
 void Room::tick(std::int64_t nowMs) {
+  if (mysteryTick(nowMs)) return;  // Grace timers (rules.md Disconnects).
   if (deadlineMs_ && nowMs >= *deadlineMs_) advance(nowMs);
 }
 
@@ -226,7 +229,9 @@ void Room::advance(std::int64_t nowMs) {
       finishMysteryRound(false, nowMs);
       break;
     case Phase::MysteryReveal:
-      if (round_ < kMysteryRounds) {
+      if (mystery_.roundResult && mystery_.roundResult->voided) {
+        startRound(Game::Mystery, round_, nowMs);  // Void: play this round again.
+      } else if (round_ < kMysteryRounds) {
         startRound(Game::Mystery, round_ + 1, nowMs);
       } else {
         startRound(Game::Wyr, 1, nowMs);

@@ -243,7 +243,8 @@ TEST(vote_ends_when_all_connected_voted) {
   CHECK(g.room.deadlineMs() == std::optional<std::int64_t>(T0 + 30'000));
 }
 
-TEST(vote_does_not_wait_for_disconnected_player) {
+// rules.md: the vote waits up to 20 s for someone who just left, then stops.
+TEST(vote_stops_waiting_for_disconnected_player_after_grace) {
   MysteryGame g(5);
   std::vector<std::string> innocents = g.innocents();
   g.room.disconnect(innocents[0], T0);
@@ -251,10 +252,14 @@ TEST(vote_does_not_wait_for_disconnected_player) {
   for (const JoinResult& p : g.players) {
     if (p.playerId != innocents[0]) g.room.castVote(p.playerId, std::nullopt, T0);
   }
+  CHECK_EQ(g.room.phase(), Phase::MysteryVote);  // still within their 20 s
+  g.room.tick(T0 + 19'999);
+  CHECK_EQ(g.room.phase(), Phase::MysteryVote);
+  g.room.tick(T0 + 20'000);
   CHECK_EQ(g.room.phase(), Phase::MysteryGuess);
 }
 
-TEST(last_non_voter_disconnecting_ends_vote) {
+TEST(last_non_voter_disconnecting_ends_vote_after_grace) {
   MysteryGame g(4);
   std::vector<std::string> innocents = g.innocents();
   g.toVote();
@@ -263,7 +268,35 @@ TEST(last_non_voter_disconnecting_ends_vote) {
   }
   CHECK_EQ(g.room.phase(), Phase::MysteryVote);
   g.room.disconnect(innocents[0], T0);
+  g.room.tick(T0 + 19'999);
+  CHECK_EQ(g.room.phase(), Phase::MysteryVote);  // waits: no hint who left
+  g.room.tick(T0 + 20'000);
   CHECK_EQ(g.room.phase(), Phase::MysteryGuess);
+}
+
+TEST(vote_does_not_wait_for_long_gone_player) {
+  MysteryGame g(5);
+  std::vector<std::string> innocents = g.innocents();
+  g.room.disconnect(innocents[0], T0);
+  std::int64_t later = T0 + 100'000;  // gone well over 20 s by the vote
+  g.room.tick(later);                 // discuss deadline -> vote
+  CHECK_EQ(g.room.phase(), Phase::MysteryVote);
+  for (const JoinResult& p : g.players) {
+    if (p.playerId != innocents[0]) g.room.castVote(p.playerId, std::nullopt, later);
+  }
+  CHECK_EQ(g.room.phase(), Phase::MysteryGuess);
+}
+
+TEST(player_back_within_grace_can_vote) {
+  MysteryGame g(4);
+  std::string who = g.innocents()[0];
+  g.toVote();
+  g.room.disconnect(who, T0);
+  g.room.tick(T0 + 5'000);
+  g.room.rejoin(g.player(who).token, T0 + 10'000);
+  g.room.tick(T0 + 25'000);
+  CHECK_EQ(g.room.phase(), Phase::MysteryVote);  // connected again: still due
+  CHECK_EQ(g.room.castVote(who, std::nullopt, T0 + 25'000), std::string(""));
 }
 
 TEST(vote_result_is_sent_to_everyone_with_all_votes) {
@@ -424,9 +457,14 @@ TEST(scores_carry_across_rounds_and_reset_in_lobby) {
 
 // ---------------------------------------------------------------- disconnects
 
-TEST(impostor_leaves_during_discuss_voids_round) {
+TEST(impostor_gone_20s_during_discuss_voids_round) {
   MysteryGame g(4);
   g.room.disconnect(g.impostor, T0);
+  CHECK_EQ(g.room.phase(), Phase::MysteryDiscuss);  // not yet: 20 s to come back
+  g.room.tick(T0 + 19'999);
+  CHECK_EQ(g.room.phase(), Phase::MysteryDiscuss);
+  g.room.takeOutbox();
+  g.room.tick(T0 + 20'000);
   CHECK_EQ(g.room.phase(), Phase::MysteryReveal);
   std::vector<RoundResultEvent> results = eventsOf<RoundResultEvent>(g.room.takeOutbox());
   CHECK_EQ(results.size(), std::size_t(1));
@@ -437,13 +475,91 @@ TEST(impostor_leaves_during_discuss_voids_round) {
   for (const Player& p : g.room.players()) CHECK_EQ(p.score, 0);
 }
 
-TEST(impostor_leaves_during_vote_voids_round) {
+TEST(impostor_gone_20s_during_vote_voids_round) {
   MysteryGame g(4);
   g.toVote();
   for (const std::string& id : g.innocents()) g.room.castVote(id, g.impostor, T0);
   g.room.disconnect(g.impostor, T0);
+  g.room.tick(T0 + 19'999);
+  CHECK_EQ(g.room.phase(), Phase::MysteryVote);
+  g.room.tick(T0 + 20'000);
   CHECK_EQ(g.room.phase(), Phase::MysteryReveal);
   for (const Player& p : g.room.players()) CHECK_EQ(p.score, 0);
+}
+
+TEST(impostor_back_within_grace_round_continues) {
+  MysteryGame g(4);
+  g.room.disconnect(g.impostor, T0);
+  g.room.tick(T0 + 10'000);  // server ticks while they're away
+  CHECK_EQ(g.room.phase(), Phase::MysteryDiscuss);
+  g.room.rejoin(g.player(g.impostor).token, T0 + 15'000);
+  g.room.tick(T0 + 30'000);
+  CHECK_EQ(g.room.phase(), Phase::MysteryDiscuss);  // no void
+  g.toVote();
+  for (const std::string& id : g.innocents()) g.room.castVote(id, g.impostor, T0 + 30'000);
+  g.room.castVote(g.impostor, std::nullopt, T0 + 30'000);
+  CHECK_EQ(g.room.phase(), Phase::MysteryGuess);  // normal round, impostor caught
+  g.room.next(g.room.hostId(), T0 + 30'000);
+  for (const std::string& id : g.innocents()) CHECK_EQ(scoreOf(g.room, id), 100);
+}
+
+TEST(vote_deadline_while_impostor_away_voids_round) {
+  MysteryGame g(4);
+  g.toVote();  // vote deadline T0 + 45 s
+  for (const std::string& id : g.innocents()) g.room.castVote(id, g.impostor, T0);
+  g.room.disconnect(g.impostor, T0 + 40'000);  // still inside grace at the deadline
+  g.room.tick(T0 + 44'000);
+  CHECK_EQ(g.room.phase(), Phase::MysteryVote);
+  g.room.takeOutbox();
+  g.room.tick(T0 + 45'000);
+  CHECK_EQ(g.room.phase(), Phase::MysteryReveal);
+  std::vector<RoundResultEvent> results = eventsOf<RoundResultEvent>(g.room.takeOutbox());
+  CHECK(!results.empty() && results[0].voided);
+  CHECK(eventsOf<VoteResultEvent>(g.room.takeOutbox()).empty());
+}
+
+TEST(host_next_in_vote_while_impostor_away_voids_round) {
+  MysteryGame g(4);
+  g.toVote();
+  g.room.disconnect(g.impostor, T0);
+  g.room.tick(T0 + 500);
+  CHECK_EQ(g.room.phase(), Phase::MysteryVote);
+  g.room.next(g.room.hostId(), T0 + 1'000);
+  CHECK_EQ(g.room.phase(), Phase::MysteryReveal);
+  CHECK(g.room.findPlayer(g.impostor)->score == 0);
+}
+
+TEST(void_round_is_replayed_with_new_impostor_and_words) {
+  MysteryGame g(5);
+  std::string firstImpostor = g.impostor;
+  std::string firstWord = g.mainWord;
+  g.room.disconnect(firstImpostor, T0);
+  g.room.tick(T0 + 20'000);  // void
+  CHECK_EQ(g.room.round(), 1);
+  g.room.takeOutbox();
+
+  g.room.next(g.room.hostId(), T0 + 21'000);
+  CHECK_EQ(g.room.phase(), Phase::MysteryDiscuss);
+  CHECK_EQ(g.room.round(), 1);  // same round again, not round 2
+  g.readWords(g.room.takeOutbox());
+  CHECK(g.impostor != firstImpostor);
+  CHECK(g.mainWord != firstWord);
+}
+
+TEST(void_last_mystery_round_replays_before_wyr) {
+  MysteryGame g(5);
+  for (int round = 1; round < 3; ++round) {
+    nextUntil(g, Phase::MysteryReveal);
+    g.room.next(g.host(), T0);
+  }
+  g.readWords(g.room.takeOutbox());
+  CHECK_EQ(g.room.round(), 3);
+  g.room.disconnect(g.impostor, T0);
+  g.room.tick(T0 + 20'000);
+  CHECK_EQ(g.room.phase(), Phase::MysteryReveal);
+  g.room.next(g.room.hostId(), T0 + 20'000);
+  CHECK_EQ(g.room.game(), Game::Mystery);
+  CHECK_EQ(g.room.round(), 3);
 }
 
 TEST(impostor_leaves_during_guess_counts_as_no_guess) {
