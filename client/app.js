@@ -193,6 +193,15 @@ function nameOf(id) {
   return p ? p.name : '?';
 }
 
+function playerOf(id) {
+  return players().find((x) => x.id === id);
+}
+
+// Avatars + names, e.g. for award winners.
+function whoList(ids, size = '') {
+  return ids.map((id) => Feast.who(playerOf(id), size));
+}
+
 function isHost() {
   return state.room && state.room.hostId === state.me;
 }
@@ -346,9 +355,10 @@ function renderJoin() {
 
 function renderLobby() {
   $('lobby-code').textContent = state.room.code;
+  renderAvatarEditor();
   fill('lobby-players', players().map((p) =>
     el('li', { class: p.connected ? '' : 'away' },
-      p.id === state.room.hostId ? '👑 ' : '', p.name,
+      Feast.avatar(p.avatar), p.id === state.room.hostId ? '👑 ' : '', p.name,
       p.id === state.me ? ' (you)' : '',
       p.connected ? '' : ' · away')));
 
@@ -362,6 +372,31 @@ function renderLobby() {
   } else {
     fill('lobby-host', el('p', { class: 'muted center' }, `Waiting for ${nameOf(state.room.hostId)} to start…`));
   }
+}
+
+// Lobby only: tap an emoji, a color or an accessory; each tap is sent
+// straight away and comes back in ROOM_STATE.
+function renderAvatarEditor() {
+  const me = playerOf(state.me);
+  if (!me) return;
+  const current = me.avatar || { emoji: 'turkey', color: 'orange', accessory: 'none' };
+  const set = (part, value) => {
+    socket.send('SET_AVATAR', { ...current, [part]: value });
+  };
+  const row = (part, table, label, show) => el('div', {},
+    el('p', { class: 'step' }, label),
+    el('div', { class: `pick-grid ${part}` }, Object.keys(table).map((name) =>
+      el('button', {
+        class: `pick ${current[part] === name ? 'selected' : ''}`,
+        'data-avatar': `${part}:${name}`,
+        'aria-label': name,
+        onclick: () => set(part, name),
+      }, show(name)))));
+  fill('avatar-editor',
+    el('div', { class: 'center' }, Feast.avatar(current, 'xl')),
+    row('emoji', Feast.AVATAR_EMOJI, 'Pick your avatar', (n) => Feast.AVATAR_EMOJI[n]),
+    row('color', Feast.AVATAR_COLOR, 'Color', (n) => el('span', { class: 'swatch', style: `background:${Feast.AVATAR_COLOR[n]}` })),
+    row('accessory', Feast.AVATAR_ACCESSORY, 'Accessory', (n) => Feast.AVATAR_ACCESSORY[n] || '✖'));
 }
 
 function renderVote() {
@@ -382,7 +417,7 @@ function renderVote() {
     el('div', { class: 'choices' },
       players().filter((p) => p.id !== state.me).map((p) =>
         el('button', { class: 'btn', onclick: () => vote(p.id) },
-          p.name, p.connected ? '' : ' (away)')),
+          Feast.avatar(p.avatar), p.name, p.connected ? '' : ' (away)')),
       el('button', { class: 'btn subtle', onclick: () => vote(null) }, 'Skip')),
     el('p', { class: 'muted center' }, `${progress()} voted`));
 }
@@ -506,7 +541,8 @@ function renderMatchOver() {
         : `Champion: ${m.winnerIds.map(nameOf).join(' & ')}`),
     el('ol', { class: 'leaderboard' }, m.leaderboard.map((e) =>
       el('li', { class: e.playerId === state.me ? 'me' : '' },
-        m.winnerIds.includes(e.playerId) ? '🏆 ' : '', `${e.name} — ${e.score}`))),
+        m.winnerIds.includes(e.playerId) ? '🏆 ' : '',
+        Feast.avatar(playerOf(e.playerId) && playerOf(e.playerId).avatar), `${e.name} — ${e.score}`))),
     me ? el('p', { class: 'center' }, `You scored ${me.score}.`) : null,
     (m.awards || []).length ? el('h3', { class: 'center' }, 'Awards') : null,
     el('ul', { class: 'plain awards-list' }, (m.awards || []).map((a) =>
@@ -534,8 +570,9 @@ function optionText(q, letter) {
 function renderAttChoose() {
   if (!iAmSubject()) {
     fill('att-choose-body',
-      el('p', { class: 'huge-emoji center' }, '🎤'),
-      el('h2', { class: 'center' }, `${subjectName()}'s turn!`),
+      el('p', { class: 'center' }, Feast.avatar(playerOf(state.attSubject && state.attSubject.subjectId)
+          ? playerOf(state.attSubject.subjectId).avatar : null, 'xl')),
+      el('h2', { class: 'center' }, `🎤 ${subjectName()}'s turn!`),
       el('p', { class: 'big center' }, `${subjectName()} is picking a question…`),
       el('p', { class: 'muted center' }, 'Get ready to guess what they would say.'));
     return;
@@ -648,7 +685,7 @@ function renderAward() {
     el('div', { class: `award-card ${won ? 'won' : ''}` },
       el('p', { class: 'award-title' }, a.title),
       el('p', { class: 'center' }, a.description),
-      el('p', { class: 'award-winners' }, a.playerIds.map(nameOf).join(' & ')),
+      el('p', { class: 'award-winners' }, whoList(a.playerIds, 'lg')),
       el('p', { class: 'center' }, `+${a.points}${a.playerIds.length > 1 ? ' each' : ''}`)),
     won ? el('p', { class: 'big center' }, `That's you! +${a.points} 🎉`) : null);
 }

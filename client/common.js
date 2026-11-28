@@ -148,5 +148,40 @@ const Feast = (() => {
     return n > 0 ? `+${n}` : String(n);
   }
 
-  return { connect, requestWakeLock, el, fill, showScreen, secondsLeft, toast, signed };
+  // Avatars (rules.md): the server sends names; this is the one table that
+  // turns them into emoji and colors. Keep in sync with src/game/avatar.cpp.
+  const AVATAR_EMOJI = {
+    turkey: '🦃', pie: '🥧', leaf: '🍂', corn: '🌽', maple: '🍁', bear: '🐻', fox: '🦊', dog: '🐶',
+    cat: '🐱', frog: '🐸', panda: '🐼', penguin: '🐧', owl: '🦉', cowboy: '🤠', cool: '😎', alien: '👽',
+  };
+  const AVATAR_COLOR = {
+    orange: '#e2662a', cranberry: '#a11d3a', gold: '#f0b23e', green: '#4f8a3c',
+    blue: '#3a6ea5', purple: '#7b4fa0', pink: '#d45d8c', brown: '#6b4428',
+  };
+  const AVATAR_ACCESSORY = {
+    none: '', tophat: '🎩', crown: '👑', bow: '🎀', cap: '🧢', gradcap: '🎓', flower: '🌸',
+  };
+
+  // A round avatar. size: '' (inline with text), 'lg', or 'xl'. Only values
+  // from the tables above go into the page, never raw text from the server.
+  function avatar(a, size = '') {
+    const av = a || {};
+    const emoji = AVATAR_EMOJI[av.emoji] || AVATAR_EMOJI.turkey;
+    const color = AVATAR_COLOR[av.color] || AVATAR_COLOR.orange;
+    const acc = AVATAR_ACCESSORY[av.accessory] || '';
+    return el('span', { class: `avatar ${size}`, style: `background:${color}`, 'aria-hidden': 'true' },
+      el('span', { class: 'avatar-emoji' }, emoji),
+      acc ? el('span', { class: 'avatar-acc' }, acc) : null);
+  }
+
+  // Avatar + name, for lists.
+  function who(player, size = '') {
+    if (!player) return el('span', { class: 'who' }, '?');
+    return el('span', { class: 'who' }, avatar(player.avatar, size), player.name);
+  }
+
+  return {
+    connect, requestWakeLock, el, fill, showScreen, secondsLeft, toast, signed, avatar, who,
+    AVATAR_EMOJI, AVATAR_COLOR, AVATAR_ACCESSORY,
+  };
 })();

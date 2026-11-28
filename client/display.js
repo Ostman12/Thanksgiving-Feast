@@ -129,6 +129,10 @@ function nameOf(id) {
   return p ? p.name : '?';
 }
 
+function playerOf(id) {
+  return players().find((x) => x.id === id);
+}
+
 function currentPhase() {
   return state.room ? state.room.phase : null;
 }
@@ -185,7 +189,7 @@ function renderLobby() {
   const needed = state.room.testMode ? 2 : 4;
   fill('lobby-players',
     players().map((p) => el('li', { class: p.connected ? '' : 'away' },
-      p.id === state.room.hostId ? '👑 ' : '', p.name)),
+      Feast.avatar(p.avatar, 'lg'), p.id === state.room.hostId ? '👑 ' : '', p.name)),
     players().length < needed
       ? el('li', { class: 'muted' }, `Waiting for ${needed - players().length} more…`)
       : null);
@@ -196,7 +200,7 @@ function progressList(verb) {
     el('p', { class: 'big center' }, `${state.submitted.length} of ${players().length} ${verb}`),
     el('ul', { class: 'players grid' }, players().map((p) =>
       el('li', { class: state.submitted.includes(p.id) ? 'done' : (p.connected ? '' : 'away') },
-        state.submitted.includes(p.id) ? '✅ ' : '⏳ ', p.name))),
+        state.submitted.includes(p.id) ? '✅ ' : '⏳ ', Feast.avatar(p.avatar), p.name))),
   ];
 }
 
@@ -240,8 +244,9 @@ function renderGame() {
       return renderWyrReveal();
     case 'att_choose':
       return fill('game-body',
-        el('p', { class: 'huge-emoji center' }, '🎤'),
-        el('p', { class: 'huge-text center' }, `${subjectName()}'s turn!`),
+        el('p', { class: 'center' }, Feast.avatar(state.attSubject && playerOf(state.attSubject.subjectId)
+            ? playerOf(state.attSubject.subjectId).avatar : null, 'xl')),
+        el('p', { class: 'huge-text center' }, `🎤 ${subjectName()}'s turn!`),
         el('p', { class: 'big center' }, `${subjectName()} is picking a question…`),
         el('p', { class: 'center muted' }, 'Everyone else: get ready to guess their answer.'));
     case 'att_pick':
@@ -307,7 +312,8 @@ function renderMatchOver() {
     el('p', { class: 'huge-text center' }, '🏆 ', m.winnerIds.map(nameOf).join(' & '),
       m.winnerIds.length > 1 ? ' — co-champions!' : ' — champion!'),
     el('ol', { class: 'leaderboard big' }, m.leaderboard.map((e) =>
-      el('li', { class: m.winnerIds.includes(e.playerId) ? 'me' : '' }, `${e.name} — ${e.score}`))),
+      el('li', { class: m.winnerIds.includes(e.playerId) ? 'me' : '' },
+        Feast.avatar(playerOf(e.playerId) && playerOf(e.playerId).avatar), `${e.name} — ${e.score}`))),
     (m.awards || []).length ? el('ul', { class: 'players grid awards-list' }, m.awards.map((a) =>
       el('li', {}, el('b', {}, a.title), el('br'), a.playerIds.map(nameOf).join(' & ')))) : null);
 }
@@ -360,7 +366,7 @@ function renderAward() {
     el('div', { class: 'award-card' },
       el('p', { class: 'award-title' }, a.title),
       el('p', { class: 'big center' }, a.description),
-      el('p', { class: 'award-winners' }, a.playerIds.map(nameOf).join(' & ')),
+      el('p', { class: 'award-winners' }, a.playerIds.map((id) => Feast.who(playerOf(id), 'lg'))),
       el('p', { class: 'big center' }, `+${a.points}${a.playerIds.length > 1 ? ' each' : ''}`)));
 }
 

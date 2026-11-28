@@ -318,6 +318,36 @@ body.display .award-winners { font-size: 3rem; }
   100% { transform: scale(1) rotate(0); opacity: 1; }
 }
 
+/* ---- Avatars: a colored circle, an emoji, an optional accessory on top */
+.avatar {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 1.9em; height: 1.9em; margin-right: 0.4em; vertical-align: middle; flex: none;
+  border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+}
+.avatar-emoji { font-size: 1.1em; line-height: 1; }
+.avatar-acc {
+  position: absolute; top: -0.6em; left: 50%; transform: translateX(-50%) rotate(-8deg);
+  font-size: 0.85em; line-height: 1;
+}
+.avatar.lg { font-size: 1.7rem; }
+.avatar.xl { font-size: 3.4rem; margin: 18px 0 6px; }
+.who { display: inline-flex; align-items: center; margin: 0 10px 6px 0; }
+.award-winners { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; }
+
+/* Lobby avatar editor */
+.avatar-editor { margin: 6px 0 12px; }
+.pick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.pick-grid.accessory { grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.pick {
+  min-height: 48px; font-size: 1.6rem; line-height: 1; cursor: pointer;
+  background: var(--card); border: 2px solid var(--line); border-radius: var(--radius);
+  -webkit-tap-highlight-color: transparent;
+}
+.pick-grid.accessory .pick { font-size: 1.2rem; padding: 0; }
+.pick.selected { border-color: var(--gold-deep); background: #fff0c9; box-shadow: 0 3px 0 var(--gold-deep); }
+.swatch { display: inline-block; width: 28px; height: 28px; border-radius: 50%; vertical-align: middle; }
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
   .sky { display: none; }
