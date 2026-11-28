@@ -68,14 +68,19 @@ Kahoot, done like this:
 
 ## Visual style
 
-- A warm autumn theme set once with CSS variables: cream, deep orange, cranberry, brown.
+- Harvest-night theme set once with CSS variables: a dark cranberry-to-chocolate sky,
+  content on a cream "plate" with gold trim, orange primary buttons, cranberry headings.
+- Chunky Kahoot-style buttons: a darker bottom edge that presses down on tap.
+- Falling turkeys: a fixed, non-tappable layer (`.sky`) of 12 emoji behind the content,
+  animated with CSS `transform` only (cheap on phones). Hidden under
+  `prefers-reduced-motion`.
 - Emoji for icons (🦃 🥧 🕵️ ✅). No image files. An optional inline SVG logo comes last.
 - System fonts only. No web fonts, which would be one more download that can fail.
 - Big type and tap targets (buttons at least 48px tall), portrait at ~375px wide.
 - Secret word: CSS `filter: blur()`, toggled by tapping. This is client-only.
 - Short CSS fades and slides for screen changes and reveals, turned off under
   `prefers-reduced-motion`.
-- **Out:** canvas, WebGL, sprites, animation libraries, sound, QR codes (would need a
-  dependency).
+- **Out:** canvas, WebGL, sprites, animation libraries, JavaScript-driven animation, sound,
+  QR codes (would need a dependency).
 - **Order:** build the client plain and working first, then style it once the game runs end
   to end.

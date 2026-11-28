@@ -2,22 +2,31 @@
    laptop. Colors are set once here (docs/design.md: warm autumn theme). */
 
 :root {
-  --cream: #fff8ee;
-  --card: #ffffff;
-  --orange: #d9622b;
-  --cranberry: #9b1b30;
-  --brown: #5a3a22;
-  --muted: #8a7462;
-  --line: #ead9c4;
-  --ok: #2e7d32;
-  --radius: 14px;
+  /* Harvest night: dark cranberry-to-chocolate sky, cream plate, gold trim. */
+  --night: #2b160e;
+  --cream: #fff4e0;
+  --card: #fffdf8;
+  --orange: #e2662a;
+  --orange-deep: #b8481a;
+  --gold: #f0b23e;
+  --gold-deep: #c98a1c;
+  --cranberry: #a11d3a;
+  --cranberry-deep: #6e1027;
+  --brown: #4a2a16;
+  --muted: #866a55;
+  --line: #ecd3b0;
+  --ok: #4f7a2c;
+  --radius: 16px;
 }
 
 * { box-sizing: border-box; }
 
+html {
+  background: var(--night); /* shows on iOS overscroll */
+}
+
 html, body {
   margin: 0;
-  background: var(--cream);
   color: var(--brown);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 18px;
@@ -25,16 +34,76 @@ html, body {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Sky gradient on a fixed layer (background-attachment: fixed is unreliable on iOS). */
+body::before {
+  content: "";
+  position: fixed; inset: 0; z-index: -1;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(240, 178, 62, 0.28), transparent 60%),
+    linear-gradient(170deg, #7a1a2c 0%, #4a1c16 45%, var(--night) 100%);
+}
+
+/* The content sits on a cream "plate" so text stays readable over the sky. */
 main {
+  position: relative; z-index: 1;
   max-width: 480px;
-  margin: 0 auto;
-  padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+  margin: 12px auto calc(16px + env(safe-area-inset-bottom));
+  padding: 8px 18px 22px;
+  background: rgba(255, 244, 224, 0.95);
+  border: 3px solid var(--gold);
+  border-radius: 22px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+@media (max-width: 520px) {
+  main { margin-left: 10px; margin-right: 10px; }
+}
+
+/* ---- falling turkeys (decoration only, behind everything, never tappable) */
+.sky {
+  position: fixed; inset: 0; z-index: 0;
+  overflow: hidden; pointer-events: none;
+}
+.sky span {
+  position: absolute; top: 0;
+  font-size: 30px; opacity: 0.85;
+  animation: fall linear infinite;
+  will-change: transform;
+}
+@keyframes fall {
+  0%   { transform: translate(0, -12vh) rotate(0deg); }
+  50%  { transform: translate(36px, 50vh) rotate(180deg); }
+  100% { transform: translate(0, 112vh) rotate(360deg); }
+}
+/* Spread them out: position, speed, start offset (negative = already falling), size. */
+.sky span:nth-child(1)  { left: 4%;  animation-duration: 11s; animation-delay: -2s; }
+.sky span:nth-child(2)  { left: 14%; animation-duration: 14s; animation-delay: -9s;  font-size: 22px; }
+.sky span:nth-child(3)  { left: 24%; animation-duration: 9s;  animation-delay: -5s; }
+.sky span:nth-child(4)  { left: 34%; animation-duration: 16s; animation-delay: -12s; font-size: 24px; }
+.sky span:nth-child(5)  { left: 44%; animation-duration: 12s; animation-delay: -1s;  font-size: 36px; }
+.sky span:nth-child(6)  { left: 54%; animation-duration: 10s; animation-delay: -7s;  font-size: 22px; }
+.sky span:nth-child(7)  { left: 64%; animation-duration: 15s; animation-delay: -3s; }
+.sky span:nth-child(8)  { left: 74%; animation-duration: 11s; animation-delay: -10s; font-size: 26px; }
+.sky span:nth-child(9)  { left: 84%; animation-duration: 13s; animation-delay: -6s;  font-size: 34px; }
+.sky span:nth-child(10) { left: 92%; animation-duration: 9s;  animation-delay: -4s;  font-size: 22px; }
+.sky span:nth-child(11) { left: 9%;  animation-duration: 17s; animation-delay: -14s; font-size: 20px; }
+.sky span:nth-child(12) { left: 69%; animation-duration: 18s; animation-delay: -16s; font-size: 20px; }
+
+/* Screens pop in when they appear (render() only un-hides on a change). */
+main > section:not([hidden]), .word-card:not([hidden]) { animation: pop-in 0.25s ease-out; }
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
 }
 
 [hidden] { display: none !important; }
 
 h1, h2, h3 { color: var(--cranberry); margin: 0.6em 0 0.4em; }
-.title { font-size: 2.2rem; text-align: center; }
+.title {
+  font-size: clamp(1.8rem, 8.5vw, 2.4rem); font-weight: 900; text-align: center; letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: var(--cranberry);
+  text-shadow: 0 2px 0 var(--gold), 0 4px 0 rgba(0, 0, 0, 0.12);
+}
 .center { text-align: center; }
 .muted { color: var(--muted); }
 .big { font-size: 1.35rem; font-weight: 600; }
@@ -70,16 +139,29 @@ input.wide { margin-bottom: 12px; }
   background: var(--card);
   border: 2px solid var(--line);
   border-radius: var(--radius);
+  box-shadow: 0 4px 0 var(--line);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.08s ease;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
 }
-.btn:active { transform: scale(0.98); }
-.btn.primary { background: var(--orange); border-color: var(--orange); color: #fff; }
-.btn.subtle { background: transparent; color: var(--muted); }
-.btn.armed { background: var(--cranberry); border-color: var(--cranberry); color: #fff; }
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--line); }
+.btn.primary {
+  background: linear-gradient(180deg, #f07a3a, var(--orange));
+  border-color: var(--orange-deep); color: #fff;
+  box-shadow: 0 4px 0 var(--orange-deep);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+.btn.primary:active { box-shadow: 0 1px 0 var(--orange-deep); }
+.btn.subtle { background: transparent; color: var(--muted); box-shadow: none; border-color: transparent; }
+.btn.armed {
+  background: var(--cranberry); border-color: var(--cranberry-deep); color: #fff;
+  box-shadow: 0 4px 0 var(--cranberry-deep);
+}
 .btn:disabled { opacity: 0.5; cursor: default; transform: none; }
-.btn.option.selected { border-color: var(--orange); background: #fde7da; }
+.btn.option.selected {
+  border-color: var(--gold-deep); background: #fff0c9;
+  box-shadow: 0 4px 0 var(--gold-deep);
+}
 
 .choices .btn { text-align: left; }
 .ab { display: grid; gap: 10px; }
@@ -90,6 +172,7 @@ input.wide { margin-bottom: 12px; }
   position: sticky; top: 0; z-index: 10;
   background: var(--cranberry); color: #fff;
   text-align: center; padding: 8px; font-weight: 600;
+  border-bottom: 2px solid var(--gold);
 }
 .toast {
   position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom));
@@ -102,24 +185,37 @@ input.wide { margin-bottom: 12px; }
 .round-bar {
   position: sticky; top: 0; z-index: 5;
   display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 16px; background: var(--brown); color: var(--cream);
-  font-weight: 600;
+  padding: 10px 16px; color: var(--cream);
+  background: linear-gradient(180deg, var(--cranberry), var(--cranberry-deep));
+  border-bottom: 3px solid var(--gold);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  font-weight: 700;
 }
-.countdown { font-variant-numeric: tabular-nums; }
-.countdown.urgent { color: #ffb199; }
+.countdown {
+  font-variant-numeric: tabular-nums;
+  background: rgba(0, 0, 0, 0.25); color: var(--gold);
+  padding: 2px 12px; border-radius: 999px;
+}
+.countdown:empty { display: none; }
+.countdown.urgent { color: #fff; background: var(--orange); }
 
 /* ---- lobby */
 .room-code {
-  font-size: 3.2rem; font-weight: 800; letter-spacing: 0.25em;
+  font-size: 3.2rem; font-weight: 900; letter-spacing: 0.25em;
   text-align: center; color: var(--cranberry); margin: 0;
+  text-shadow: 0 3px 0 var(--gold);
 }
 .players { list-style: none; padding: 0; margin: 16px 0; }
 .players li {
   padding: 10px 14px; margin: 6px 0;
   background: var(--card); border: 2px solid var(--line); border-radius: var(--radius);
+  border-left: 6px solid var(--orange);
 }
 .players li.away { opacity: 0.5; }
 .players li.done { border-color: var(--ok); }
+.players li:nth-child(3n+2) { border-left-color: var(--gold); }
+.players li:nth-child(3n+3) { border-left-color: var(--cranberry); }
+.players li.done { border-left-color: var(--ok); }
 
 /* ---- secret word: blurred until tapped (client only) */
 .word-card { margin: 12px 0; }
@@ -173,11 +269,17 @@ body.display .big-ab { grid-template-columns: 1fr 1fr; gap: 24px; margin: 24px 0
 .option-card.winner { border-color: var(--ok); color: var(--brown); }
 .option-card .tag {
   display: block; font-size: 1rem; color: #fff; background: var(--orange);
+  box-shadow: 0 2px 0 var(--orange-deep);
   border-radius: 999px; padding: 4px 14px; margin: 0 auto 12px; width: fit-content;
 }
 .option-card small { display: block; font-size: 1rem; font-weight: 400; color: var(--muted); margin-top: 12px; }
 .leaderboard.big { font-size: 1.8rem; max-width: 700px; margin: 0 auto; }
 
+body.display main { padding: 12px 36px 32px; }
+body.display .sky span { font-size: 48px; }
+body.display .sky span:nth-child(even) { font-size: 36px; }
+
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; }
+  * { transition: none !important; animation: none !important; }
+  .sky { display: none; }
 }
