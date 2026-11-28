@@ -305,16 +305,20 @@ function renderWyrReveal() {
     pointsList(r.points));
 }
 
+// The podium ceremony (design.md). Built once per MATCH_OVER: re-filling it
+// on every ROOM_STATE would restart the animation.
+let ceremonyShownFor = null;
 function renderMatchOver() {
   const m = state.matchOver;
-  if (!m) return fill('over-body', el('p', { class: 'big center' }, 'Final scores…'));
+  if (!m) {
+    ceremonyShownFor = null;
+    return fill('over-body', el('p', { class: 'big center' }, 'Final scores…'));
+  }
+  if (ceremonyShownFor === m) return;
+  ceremonyShownFor = m;
   fill('over-body',
-    el('p', { class: 'huge-text center' }, '🏆 ', m.winnerIds.map(nameOf).join(' & '),
-      m.winnerIds.length > 1 ? ' — co-champions!' : ' — champion!'),
-    el('ol', { class: 'leaderboard big' }, m.leaderboard.map((e) =>
-      el('li', { class: m.winnerIds.includes(e.playerId) ? 'me' : '' },
-        Feast.avatar(playerOf(e.playerId) && playerOf(e.playerId).avatar), `${e.name} — ${e.score}`))),
-    (m.awards || []).length ? el('ul', { class: 'players grid awards-list' }, m.awards.map((a) =>
+    Feast.ceremony(m, playerOf),
+    (m.awards || []).length ? el('ul', { class: 'players grid awards-list late' }, m.awards.map((a) =>
       el('li', {}, el('b', {}, a.title), el('br'), a.playerIds.map(nameOf).join(' & ')))) : null);
 }
 

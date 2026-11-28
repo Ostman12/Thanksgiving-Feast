@@ -69,6 +69,23 @@ To keep the tested match one flag away, it sits behind `--no-around-the-table`:
   scores are gone: phones land back on the join screen, the host creates a new room, and
   everyone joins it. Best done between matches, not in the middle of one.
 
+## Podium ceremony
+
+The `match_over` screen, after the awards, on the big screen and every phone. It is built
+from `MATCH_OVER` (final totals, winners, awards) and `ROOM_STATE` (avatars), so it needs no
+messages of its own.
+
+- **Order:** a drumroll line, then 3rd place rises on its pedestal, then 2nd, then a pause and
+  1st (tallest, 👑) with confetti and "… is the champion!", then everyone else's place and
+  the awards recap. Phones add "You finished 2nd! 🥈".
+- **Ties:** places use competition ranking (1, 1, 3). Players tied on a score share a
+  pedestal, avatars side by side. Only the top three scores get pedestals.
+- **CSS only:** each step is a CSS animation with a delay, so every screen plays the same
+  sequence from the moment `MATCH_OVER` arrives. Scores pop in (no JavaScript counting).
+  Under `prefers-reduced-motion` the final podium shows straight away.
+- **Built once per match:** the ceremony is only rebuilt when a new `MATCH_OVER` arrives, so
+  a `ROOM_STATE` (say, someone's phone reconnecting) doesn't restart it.
+
 ## Client: smooth without reloads
 
 Plain HTML/CSS/JS, no frameworks, no build step (CLAUDE.md). The goal is to feel like

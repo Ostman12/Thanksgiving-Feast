@@ -180,8 +180,84 @@ const Feast = (() => {
     return el('span', { class: 'who' }, avatar(player.avatar, size), player.name);
   }
 
+  // ---- Podium ceremony (design.md). Groups MATCH_OVER's leaderboard by score
+  // with competition ranking (1, 1, 3): [{place, score, entries}], best first.
+  function rankGroups(leaderboard) {
+    const groups = [];
+    leaderboard.forEach((entry, i) => {
+      const last = groups[groups.length - 1];
+      if (last && last.score === entry.score) last.entries.push(entry);
+      else groups.push({ place: i + 1, score: entry.score, entries: [entry] });
+    });
+    return groups;
+  }
+
+  function ordinal(n) {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+
+  // The whole ceremony as one element. Every step is a CSS animation with a
+  // delay (style.css .ceremony), so all screens play the same show.
+  //   m:        MATCH_OVER payload
+  //   playerOf: id -> player from ROOM_STATE (for avatars)
+  //   me:       my player id on a phone, null on the display
+  function ceremony(m, playerOf, me = null) {
+    const groups = rankGroups(m.leaderboard);
+    const avatarOf = (id) => {
+      const p = playerOf(id);
+      return p ? p.avatar : null;
+    };
+    const medal = ['🥇', '🥈', '🥉'];
+
+    // Pedestals in podium order: 2nd on the left, 1st in the middle, 3rd on the right.
+    const pedestal = (groupIndex) => {
+      const g = groups[groupIndex];
+      if (!g) return null;
+      return el('div', { class: `pedestal p${groupIndex + 1}` },
+        el('div', { class: 'stand' },
+          groupIndex === 0 ? el('div', { class: 'crown' }, '👑') : null,
+          g.entries.map((e) => el('div', { class: 'stander' },
+            avatar(avatarOf(e.playerId), 'xl'),
+            el('div', { class: 'stander-name' }, e.name)))),
+        el('div', { class: 'block' },
+          el('div', { class: 'place' }, medal[groupIndex]),
+          el('div', { class: 'pts' }, `${g.score}`)));
+    };
+
+    const champs = groups[0] ? groups[0].entries.map((e) => e.name) : [];
+    const championLine = champs.length > 1
+      ? `🏆 ${champs.join(' & ')} are co-champions!`
+      : `🏆 ${champs[0] || '?'} is the champion!`;
+
+    let mine = null;
+    if (me) {
+      const g = groups.find((x) => x.entries.some((e) => e.playerId === me));
+      if (g) {
+        const icon = g.place <= 3 ? ` ${medal[groups.indexOf(g)] || ''}` : '';
+        mine = g.place === 1 ? (champs.length > 1 ? "You're a co-champion! 🎉" : "You're the champion! 🎉")
+                             : `You finished ${ordinal(g.place)}!${icon}`;
+      }
+    }
+
+    const rest = groups.slice(3).flatMap((g) => g.entries.map((e) =>
+      el('li', { class: e.playerId === me ? 'me' : '' },
+        el('span', { class: 'rest-place' }, ordinal(g.place)),
+        avatar(avatarOf(e.playerId)), `${e.name} — ${e.score}`)));
+
+    return el('div', { class: 'ceremony' },
+      el('p', { class: 'drumroll center' }, '🥁 And the final results are…'),
+      el('div', { class: 'podium' }, pedestal(1), pedestal(0), pedestal(2)),
+      el('div', { class: 'confetti', 'aria-hidden': 'true' },
+        ['🎉', '🎊', '✨', '🦃', '🎉', '🎊', '🍂', '✨', '🎉', '🥧', '🎊', '✨'].map((c) => el('span', {}, c))),
+      el('p', { class: 'champion-line center' }, championLine),
+      mine ? el('p', { class: 'my-place center' }, mine) : null,
+      rest.length ? el('ol', { class: 'rest' }, rest) : null);
+  }
+
   return {
     connect, requestWakeLock, el, fill, showScreen, secondsLeft, toast, signed, avatar, who,
-    AVATAR_EMOJI, AVATAR_COLOR, AVATAR_ACCESSORY,
+    ceremony, AVATAR_EMOJI, AVATAR_COLOR, AVATAR_ACCESSORY,
   };
 })();

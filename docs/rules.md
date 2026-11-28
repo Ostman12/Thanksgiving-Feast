@@ -37,7 +37,9 @@ this file disagree, the code is wrong (or this file gets updated first, on purpo
    `--no-around-the-table`, see Game 3).
 5. **Awards.** Bonus awards from all the games, revealed one at a time, +75 each (see
    Awards). They can change who wins.
-6. **Final leaderboard.** The highest score is champion. Tied top scores are co-champions.
+6. **Podium ceremony.** Final totals (awards included) are revealed on pedestals, Mario Party
+   style: 3rd place, then 2nd, then the champion, then everyone else. The highest score is
+   champion. Tied scores share a place (and a pedestal); tied top scores are co-champions.
 
 Scores start at 0 and carry across every round and every game.
 

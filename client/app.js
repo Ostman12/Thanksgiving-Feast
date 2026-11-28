@@ -534,28 +534,26 @@ function renderWyrReveal() {
     pointsList(r.points));
 }
 
+// The podium ceremony (design.md). Built once per MATCH_OVER: re-filling it
+// on every ROOM_STATE would restart the animation.
+let ceremonyShownFor = null;
 function renderMatchOver() {
   const m = state.matchOver;
   if (!m) {
+    ceremonyShownFor = null;
     fill('over-body', el('p', { class: 'center' }, 'Final scores…'));
     return;
   }
-  const me = m.leaderboard.find((e) => e.playerId === state.me);
+  if (ceremonyShownFor === m) return;
+  ceremonyShownFor = m;
   fill('over-body',
     el('h2', { class: 'center' }, '🏆 Final scores'),
-    el('p', { class: 'big center' },
-      m.winnerIds.includes(state.me)
-        ? (m.winnerIds.length > 1 ? "You're a co-champion! 🎉" : "You're the champion! 🎉")
-        : `Champion: ${m.winnerIds.map(nameOf).join(' & ')}`),
-    el('ol', { class: 'leaderboard' }, m.leaderboard.map((e) =>
-      el('li', { class: e.playerId === state.me ? 'me' : '' },
-        m.winnerIds.includes(e.playerId) ? '🏆 ' : '',
-        Feast.avatar(playerOf(e.playerId) && playerOf(e.playerId).avatar), `${e.name} — ${e.score}`))),
-    me ? el('p', { class: 'center' }, `You scored ${me.score}.`) : null,
-    (m.awards || []).length ? el('h3', { class: 'center' }, 'Awards') : null,
-    el('ul', { class: 'plain awards-list' }, (m.awards || []).map((a) =>
-      el('li', { class: a.playerIds.includes(state.me) ? 'me' : '' },
-        `${a.title}: ${a.playerIds.map(nameOf).join(' & ')}`))));
+    Feast.ceremony(m, playerOf, state.me),
+    (m.awards || []).length ? el('div', { class: 'late' },
+      el('h3', { class: 'center' }, 'Awards'),
+      el('ul', { class: 'plain awards-list' }, m.awards.map((a) =>
+        el('li', { class: a.playerIds.includes(state.me) ? 'me' : '' },
+          `${a.title}: ${a.playerIds.map(nameOf).join(' & ')}`)))) : null);
 }
 
 // ------------------------------------------------------------------ Around the Table
