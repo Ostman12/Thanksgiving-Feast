@@ -45,9 +45,6 @@ std::string Room::submitChoice(const std::string& playerId, const std::string& c
 
 // End of the choose phase: counts, points, and the reveal.
 void Room::finishWyrRound(std::int64_t nowMs) {
-  std::vector<std::string> playerIds;
-  for (const Player& p : players_) playerIds.push_back(p.id);
-
   WyrTally tally = tallyChoices(wyr_.choices);
   WyrResultEvent result;
   for (const Player& p : players_) {  // choices in join order
@@ -58,9 +55,17 @@ void Room::finishWyrRound(std::int64_t nowMs) {
   result.countA = tally.countA;
   result.countB = tally.countB;
   result.majority = tally.majority;
-  result.points = wyrPoints(playerIds, wyr_.choices);
+  result.points = wyrPoints(playerIds(), wyr_.choices);
   for (const PointsDelta& d : result.points) {
     if (Player* p = findPlayerMutable(d.playerId)) p->score += d.delta;
+  }
+
+  // Awards bookkeeping (rules.md Awards): Crowd Pleaser and Lone Wolf.
+  int total = tally.countA + tally.countB;
+  for (const WyrChoice& c : wyr_.choices) {
+    if (tally.majority && c.choice == *tally.majority) ++stats_.majorityPicks[c.playerId];
+    int sameSide = c.choice == 'A' ? tally.countA : tally.countB;
+    if (sameSide == 1 && total >= kLoneWolfMinChoosers) ++stats_.loneWolfPicks[c.playerId];
   }
 
   wyr_.result = result;

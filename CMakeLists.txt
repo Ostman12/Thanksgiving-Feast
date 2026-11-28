@@ -63,6 +63,10 @@ add_library(feast_game
   src/game/content.cpp
   src/game/room_wyr.cpp
   src/game/wyr.cpp
+  src/game/att.cpp
+  src/game/room_att.cpp
+  src/game/awards.cpp
+  src/game/room_awards.cpp
 )
 target_include_directories(feast_game PUBLIC src)
 
@@ -87,6 +91,8 @@ add_executable(feast_tests
   tests/test_mystery.cpp
   tests/test_wyr.cpp
   tests/test_server.cpp
+  tests/test_att.cpp
+  tests/test_awards.cpp
 )
 target_link_libraries(feast_tests PRIVATE feast_protocol)
 add_test(NAME feast_tests COMMAND feast_tests)

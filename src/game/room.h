@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "game/att.h"
+#include "game/awards.h"
 #include "game/events.h"
 #include "game/mystery.h"
 #include "game/wyr.h"
@@ -40,6 +42,8 @@ constexpr std::int64_t kDiscussMs = 100'000;
 constexpr std::int64_t kVoteMs = 45'000;
 constexpr std::int64_t kGuessMs = 30'000;
 constexpr std::int64_t kChooseMs = 30'000;
+constexpr std::int64_t kAttChooseMs = 20'000;  // subject picks a question
+constexpr std::int64_t kAttPickMs = 45'000;    // subject answers, others predict
 // rules.md: how long a disconnected impostor has to come back before the
 // round is void, how long the vote keeps waiting for anyone who left, and how
 // long a disconnected host keeps host.
@@ -65,6 +69,16 @@ struct WyrRoundState {
   std::optional<WyrResultEvent> result;
 };
 
+// One Around the Table round (rules.md Game 3).
+struct AttRoundState {
+  std::string subjectId;
+  std::size_t questionIndex = 0;  // into attQuestions()
+  int skipsLeft = 0;
+  std::vector<AttPrediction> picks;  // In the order picked; the subject's is their answer.
+  std::optional<AttQuestionEvent> question;  // Set once the subject has chosen.
+  std::optional<AttResultEvent> result;
+};
+
 // One room's game state. No sockets: the network layer calls these methods,
 // sends what takeOutbox() returns, and calls tick() regularly so deadlines fire.
 // Times are Unix epoch milliseconds passed in by the caller, so tests control
@@ -75,7 +89,8 @@ struct WyrRoundState {
 class Room {
  public:
   // `seed` drives the random tokens. Tests pass a fixed seed.
-  Room(std::string code, bool testMode, std::uint32_t seed);
+  // withAroundTheTable false = the server's --no-around-the-table flag.
+  Room(std::string code, bool testMode, std::uint32_t seed, bool withAroundTheTable = true);
 
   // CREATE_ROOM / JOIN_ROOM. The first player to join becomes host.
   JoinResult addPlayer(const std::string& rawName);
@@ -101,6 +116,12 @@ class Room {
   // SUBMIT_CHOICE. choice must be exactly "A" or "B".
   std::string submitChoice(const std::string& playerId, const std::string& choice,
                            std::int64_t nowMs);
+  // ATT_SKIP / ATT_CONTINUE (the subject, while choosing a question).
+  std::string attSkip(const std::string& playerId, std::int64_t nowMs);
+  std::string attContinue(const std::string& playerId, std::int64_t nowMs);
+  // ATT_PICK. option 'A'..'D', or nullopt to Pass (not allowed for the subject).
+  std::string attPick(const std::string& playerId, std::optional<char> option,
+                      std::int64_t nowMs);
 
   // Ends the current phase if its deadline has passed.
   void tick(std::int64_t nowMs);
@@ -119,6 +140,7 @@ class Room {
   int round() const { return round_; }  // While paused: the round waiting to start.
   std::optional<std::int64_t> deadlineMs() const { return deadlineMs_; }
   bool testMode() const { return testMode_; }
+  bool withAroundTheTable() const { return withAroundTheTable_; }
   // Fewer connected players than this at a round start pauses the match.
   std::size_t minConnectedToPlay() const {
     return testMode_ ? kMinConnectedToPlayTestMode : kMinConnectedToPlay;
@@ -159,6 +181,25 @@ class Room {
   bool allConnectedChose() const;
   std::vector<std::string> chooserIds() const;
 
+  // Around the Table (room_att.cpp).
+  bool setupAttRound();
+  bool nextSubjectAvailable() const;
+  void startAttPick(std::int64_t nowMs);
+  void finishAttRound(std::int64_t nowMs);
+  void attOnDisconnect(std::int64_t nowMs);
+  void attCatchUp(const std::string& playerId);
+  void attSnapshot(std::vector<Event>& events) const;
+  bool allAttPicked() const;
+  std::vector<std::string> attPickerIds() const;
+  std::size_t pickAttQuestion();
+  AttPreviewEvent attPreview() const;
+  AttSubjectEvent attSubjectEvent() const;
+
+  // Awards (room_awards.cpp).
+  void startAwards(std::int64_t nowMs);
+  void revealAward(std::int64_t nowMs);
+  std::vector<std::string> playerIds() const;
+
   void emit(Event event, std::string toPlayerId = "");
   RoomStateEvent roomStateEvent() const;
   void emitRoomState();
@@ -166,6 +207,7 @@ class Room {
 
   std::string code_;
   bool testMode_;
+  bool withAroundTheTable_;
   std::mt19937 rng_;
   std::vector<Player> players_;
   std::string hostId_;
@@ -181,6 +223,14 @@ class Room {
   std::set<std::size_t> usedWordPairs_;     // This room; cleared when all are used.
   WyrRoundState wyr_;
   std::set<std::size_t> usedPrompts_;       // This room; cleared when all are used.
+  AttRoundState att_;
+  int attTotalRounds_ = 0;                  // Players in the room when the match started.
+  std::vector<std::string> pastSubjects_;   // This match.
+  std::set<std::size_t> usedAttQuestions_;  // This room; cleared when all are used.
+  MatchStats stats_;                        // This match, for the awards.
+  std::vector<Award> awards_;               // Awards to reveal at the end of the match.
+  std::size_t awardIndex_ = 0;              // The one on screen during Phase::Awards.
+  std::vector<AwardSummary> givenAwards_;   // Revealed so far, for MATCH_OVER.
   std::optional<MatchOverEvent> matchOver_;  // Kept for rejoin catch-up.
 
   std::vector<Outgoing> outbox_;

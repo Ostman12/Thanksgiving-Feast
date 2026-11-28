@@ -185,6 +185,13 @@ TEST(full_match_order) {
       {Phase::WyrChoose, Game::Wyr, 1},          {Phase::WyrReveal, Game::Wyr, 1},
       {Phase::WyrChoose, Game::Wyr, 2},          {Phase::WyrReveal, Game::Wyr, 2},
       {Phase::WyrChoose, Game::Wyr, 3},          {Phase::WyrReveal, Game::Wyr, 3},
+      // Around the Table: one round per player (4), each choose -> pick -> reveal.
+      {Phase::AttChoose, Game::Att, 1}, {Phase::AttPick, Game::Att, 1}, {Phase::AttReveal, Game::Att, 1},
+      {Phase::AttChoose, Game::Att, 2}, {Phase::AttPick, Game::Att, 2}, {Phase::AttReveal, Game::Att, 2},
+      {Phase::AttChoose, Game::Att, 3}, {Phase::AttPick, Game::Att, 3}, {Phase::AttReveal, Game::Att, 3},
+      {Phase::AttChoose, Game::Att, 4}, {Phase::AttPick, Game::Att, 4}, {Phase::AttReveal, Game::Att, 4},
+      // Awards: every impostor escaped, so only Master of Disguise has winners.
+      {Phase::Awards, Game::None, 1},
       {Phase::MatchOver, Game::None, 0},         {Phase::Lobby, Game::None, 0},
   };
   for (std::size_t i = 0; i < expected.size(); ++i) {

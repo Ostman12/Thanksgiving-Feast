@@ -219,8 +219,9 @@ TEST(server_json_shapes) {
   Lobby l(4);
   Actions a = l.m.handleMessage(1, msg("START_MATCH"), T0);
   json started = ofType(to(a, 2), "MATCH_STARTED").at(0)["payload"];
-  CHECK_EQ(started["games"], json::array({"mystery", "wyr"}));
+  CHECK_EQ(started["games"], json::array({"mystery", "wyr", "att"}));
   CHECK_EQ(started["rounds"]["mystery"], 3);
+  CHECK_EQ(started["rounds"]["att"], 4);  // one round per player
   json phase = ofType(to(a, 2), "PHASE").at(0)["payload"];
   CHECK_EQ(phase["game"], "mystery");
   CHECK_EQ(phase["phase"], "mystery_discuss");
@@ -230,6 +231,7 @@ TEST(server_json_shapes) {
   Actions end = l.m.handleMessage(1, msg("END_MATCH"), T0);
   json over = ofType(to(end, 2), "MATCH_OVER").at(0)["payload"];
   CHECK(over["winnerIds"].is_array());
+  CHECK_EQ(over["awards"], json::array());  // End match skips the awards
   CHECK_EQ(over["leaderboard"].size(), std::size_t(4));
   Actions lobby = l.m.handleMessage(1, msg("NEXT"), T0);
   json lobbyPhase = ofType(to(lobby, 2), "PHASE").at(0)["payload"];

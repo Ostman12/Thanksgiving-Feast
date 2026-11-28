@@ -43,8 +43,13 @@ json toJson(const RoomStateEvent& e) {
 
 json toJson(const MatchStartedEvent& e) {
   // json::array is explicit: a bare {"mystery", "wyr"} would become an object.
-  return message("MATCH_STARTED", {{"games", json::array({"mystery", "wyr"})},
-                                   {"rounds", {{"mystery", e.mysteryRounds}, {"wyr", e.wyrRounds}}}});
+  json games = json::array({"mystery", "wyr"});
+  json rounds = {{"mystery", e.mysteryRounds}, {"wyr", e.wyrRounds}};
+  if (e.attRounds > 0) {  // Around the Table is on
+    games.push_back("att");
+    rounds["att"] = e.attRounds;
+  }
+  return message("MATCH_STARTED", {{"games", games}, {"rounds", rounds}});
 }
 
 json toJson(const PhaseEvent& e) {
@@ -60,7 +65,12 @@ json toJson(const MatchOverEvent& e) {
   for (const LeaderboardEntry& l : e.leaderboard) {
     board.push_back({{"playerId", l.playerId}, {"name", l.name}, {"score", l.score}});
   }
-  return message("MATCH_OVER", {{"winnerIds", e.winnerIds}, {"leaderboard", board}});
+  json awards = json::array();
+  for (const AwardSummary& a : e.awards) {
+    awards.push_back({{"id", a.id}, {"title", a.title}, {"playerIds", a.playerIds}});
+  }
+  return message("MATCH_OVER",
+                 {{"winnerIds", e.winnerIds}, {"leaderboard", board}, {"awards", awards}});
 }
 
 json toJson(const YourWordEvent& e) {
@@ -105,6 +115,42 @@ json toJson(const WyrResultEvent& e) {
                                 {"countB", e.countB},
                                 {"majority", optionToJson(e.majority)},
                                 {"points", pointsToJson(e.points)}});
+}
+
+json toJson(const AttSubjectEvent& e) {
+  return message("ATT_SUBJECT", {{"subjectId", e.subjectId}, {"round", e.round}, {"total", e.total}});
+}
+
+json toJson(const AttPreviewEvent& e) {
+  return message("ATT_PREVIEW",
+                 {{"question", e.question}, {"options", e.options}, {"skipsLeft", e.skipsLeft}});
+}
+
+json toJson(const AttQuestionEvent& e) {
+  return message("ATT_QUESTION",
+                 {{"subjectId", e.subjectId}, {"question", e.question}, {"options", e.options}});
+}
+
+json toJson(const AttResultEvent& e) {
+  json predictions = json::array();
+  for (const AttPrediction& p : e.predictions) {
+    predictions.push_back({{"playerId", p.playerId}, {"option", optionToJson(p.option)}});
+  }
+  return message("ATT_RESULT", {{"subjectId", e.subjectId},
+                                {"answer", optionToJson(e.answer)},
+                                {"predictions", predictions},
+                                {"perfect", e.perfect},
+                                {"points", pointsToJson(e.points)}});
+}
+
+json toJson(const AwardEvent& e) {
+  return message("AWARD", {{"index", e.index},
+                           {"total", e.total},
+                           {"id", e.id},
+                           {"title", e.title},
+                           {"description", e.description},
+                           {"playerIds", e.playerIds},
+                           {"points", e.points}});
 }
 
 }  // namespace

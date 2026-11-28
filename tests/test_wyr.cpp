@@ -267,8 +267,13 @@ TEST(full_match_winner_is_top_score) {
   for (int round = 1; round <= 3; ++round) {
     for (int i = 0; i < 3; ++i) g.room.submitChoice(g.id(i), "A", T0);
     g.room.submitChoice(g.id(3), "B", T0);
-    g.room.next(g.host(), T0);  // reveal -> next prompt or match over
+    if (round < 3) g.room.next(g.host(), T0);  // reveal -> next prompt
   }
+  // Points from the 3 prompts, before Around the Table and the awards add more.
+  CHECK_EQ(g.room.findPlayer(g.id(0))->score - before[g.id(0)], 300);
+  CHECK_EQ(g.room.findPlayer(g.id(3))->score - before[g.id(3)], 150);
+  g.room.takeOutbox();
+  nextUntil(g, Phase::MatchOver);
   CHECK_EQ(g.room.phase(), Phase::MatchOver);
   std::vector<MatchOverEvent> overs = eventsOf<MatchOverEvent>(g.room.takeOutbox());
   CHECK_EQ(overs.size(), std::size_t(1));
@@ -283,6 +288,4 @@ TEST(full_match_winner_is_top_score) {
                     over.winnerIds.end();
     CHECK_EQ(isWinner, e.score == over.leaderboard.front().score);
   }
-  CHECK_EQ(g.room.findPlayer(g.id(0))->score - before[g.id(0)], 300);
-  CHECK_EQ(g.room.findPlayer(g.id(3))->score - before[g.id(3)], 150);
 }

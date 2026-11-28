@@ -136,6 +136,16 @@ void Room::finishMysteryRound(bool voided, std::int64_t nowMs) {
     for (const PointsDelta& d : result.points) {
       if (Player* p = findPlayerMutable(d.playerId)) p->score += d.delta;
     }
+
+    // Awards bookkeeping (rules.md Awards): Detective and Master of Disguise.
+    for (const Vote& v : mystery_.votes) {
+      if (v.targetId == mystery_.impostorId && v.voterId != mystery_.impostorId) {
+        ++stats_.impostorVotes[v.voterId];
+      }
+    }
+    bool stole = mystery_.earlyGuess && result.guessCorrect.value_or(false);
+    bool escaped = !mystery_.earlyGuess && !caught;
+    if (stole || escaped) ++stats_.impostorWins[mystery_.impostorId];
   }
 
   mystery_.roundResult = result;

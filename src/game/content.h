@@ -20,4 +20,12 @@ struct WyrPrompt {
 
 const std::vector<WyrPrompt>& wyrPrompts();
 
+// Around the Table: a question about the subject with four options, A to D.
+struct AttQuestion {
+  const char* question;
+  const char* options[4];
+};
+
+const std::vector<AttQuestion>& attQuestions();
+
 }  // namespace feast

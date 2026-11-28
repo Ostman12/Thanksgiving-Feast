@@ -16,6 +16,10 @@ const char* phaseName(Phase phase) {
     case Phase::MysteryReveal: return "mystery_reveal";
     case Phase::WyrChoose: return "wyr_choose";
     case Phase::WyrReveal: return "wyr_reveal";
+    case Phase::AttChoose: return "att_choose";
+    case Phase::AttPick: return "att_pick";
+    case Phase::AttReveal: return "att_reveal";
+    case Phase::Awards: return "awards";
     case Phase::Paused: return "paused";
     case Phase::MatchOver: return "match_over";
   }
@@ -27,6 +31,7 @@ const char* gameName(Game game) {
     case Game::None: return "";
     case Game::Mystery: return "mystery";
     case Game::Wyr: return "wyr";
+    case Game::Att: return "att";
   }
   return "";
 }
@@ -40,18 +45,29 @@ std::optional<std::int64_t> phaseDuration(Phase phase) {
     case Phase::MysteryVote: return kVoteMs;
     case Phase::MysteryGuess: return kGuessMs;
     case Phase::WyrChoose: return kChooseMs;
+    case Phase::AttChoose: return kAttChooseMs;
+    case Phase::AttPick: return kAttPickMs;
     default: return std::nullopt;
   }
 }
 
 Phase firstPhaseOf(Game game) {
-  return game == Game::Mystery ? Phase::MysteryDiscuss : Phase::WyrChoose;
+  switch (game) {
+    case Game::Mystery: return Phase::MysteryDiscuss;
+    case Game::Wyr: return Phase::WyrChoose;
+    case Game::Att: return Phase::AttChoose;
+    case Game::None: break;
+  }
+  return Phase::Lobby;
 }
 
 }  // namespace
 
-Room::Room(std::string code, bool testMode, std::uint32_t seed)
-    : code_(std::move(code)), testMode_(testMode), rng_(seed) {}
+Room::Room(std::string code, bool testMode, std::uint32_t seed, bool withAroundTheTable)
+    : code_(std::move(code)),
+      testMode_(testMode),
+      withAroundTheTable_(withAroundTheTable),
+      rng_(seed) {}
 
 // ---------------------------------------------------------------- players
 
@@ -119,6 +135,14 @@ JoinResult Room::rejoin(const std::string& token, std::int64_t nowMs) {
   // rebuild their screen, to them only, then the current PHASE.
   mysteryCatchUp(result.playerId);
   wyrCatchUp(result.playerId);
+  attCatchUp(result.playerId);
+  if (phase_ == Phase::Awards && awardIndex_ < awards_.size()) {
+    // The award on screen. The points were already added when it was revealed.
+    const Award& a = awards_[awardIndex_];
+    emit(AwardEvent{static_cast<int>(awardIndex_) + 1, static_cast<int>(awards_.size()), a.id,
+                    a.title, a.description, a.playerIds, kAwardPoints},
+         result.playerId);
+  }
   if (phase_ == Phase::MatchOver && matchOver_) emit(*matchOver_, result.playerId);
   emitPhase(result.playerId);
   return result;
@@ -133,6 +157,7 @@ void Room::disconnect(const std::string& playerId, std::int64_t nowMs) {
   emitRoomState();
   mysteryOnDisconnect(playerId, nowMs);
   wyrOnDisconnect(nowMs);
+  attOnDisconnect(nowMs);
 }
 
 const Player* Room::findPlayer(const std::string& playerId) const {
@@ -199,8 +224,15 @@ std::string Room::startMatch(const std::string& playerId, std::int64_t nowMs) {
   if (connectedCount() < needed) return "not enough players";
 
   pastImpostors_.clear();
+  pastSubjects_.clear();
+  stats_ = MatchStats{};
+  awards_.clear();
+  givenAwards_.clear();
+  awardIndex_ = 0;
   matchOver_.reset();
-  emit(MatchStartedEvent{kMysteryRounds, kWyrRounds});
+  // rules.md Game 3: one round per player in the room when the match starts.
+  attTotalRounds_ = withAroundTheTable_ ? static_cast<int>(players_.size()) : 0;
+  emit(MatchStartedEvent{kMysteryRounds, kWyrRounds, attTotalRounds_});
   startRound(Game::Mystery, 1, nowMs);
   return "";
 }
@@ -215,6 +247,7 @@ std::string Room::next(const std::string& playerId, std::int64_t nowMs) {
 std::string Room::endMatch(const std::string& playerId) {
   if (playerId != hostId_) return "not the host";
   if (phase_ == Phase::Lobby || phase_ == Phase::MatchOver) return "wrong phase";
+  // rules.md Awards: ending early skips any awards not yet revealed.
   finishMatch();
   return "";
 }
@@ -255,6 +288,29 @@ void Room::advance(std::int64_t nowMs) {
     case Phase::WyrReveal:
       if (round_ < kWyrRounds) {
         startRound(Game::Wyr, round_ + 1, nowMs);
+      } else if (withAroundTheTable_ && nextSubjectAvailable()) {
+        startRound(Game::Att, 1, nowMs);
+      } else {
+        startAwards(nowMs);
+      }
+      break;
+    case Phase::AttChoose:
+      startAttPick(nowMs);
+      break;
+    case Phase::AttPick:
+      finishAttRound(nowMs);
+      break;
+    case Phase::AttReveal:
+      if (round_ < attTotalRounds_ && nextSubjectAvailable()) {
+        startRound(Game::Att, round_ + 1, nowMs);
+      } else {
+        startAwards(nowMs);
+      }
+      break;
+    case Phase::Awards:
+      ++awardIndex_;
+      if (awardIndex_ < awards_.size()) {
+        revealAward(nowMs);
       } else {
         finishMatch();
       }
@@ -288,6 +344,10 @@ void Room::startRound(Game game, int round, std::int64_t nowMs) {
 void Room::beginRound(std::int64_t nowMs) {
   if (game_ == Game::Mystery) setupMysteryRound();
   if (game_ == Game::Wyr) setupWyrRound();
+  if (game_ == Game::Att && !setupAttRound()) {
+    startAwards(nowMs);  // Nobody left who can be the subject.
+    return;
+  }
   enterPhase(firstPhaseOf(game_), nowMs);
 }
 
@@ -319,6 +379,7 @@ void Room::finishMatch() {
   for (const LeaderboardEntry& e : over.leaderboard) {
     if (e.score == over.leaderboard.front().score) over.winnerIds.push_back(e.playerId);
   }
+  over.awards = givenAwards_;
 
   matchOver_ = over;
   emit(std::move(over));
@@ -384,6 +445,19 @@ std::vector<Event> Room::displaySnapshot() const {
     case Phase::WyrReveal:
       events.push_back(wyr_.prompt);
       if (wyr_.result) events.push_back(*wyr_.result);
+      break;
+    case Phase::AttChoose:
+    case Phase::AttPick:
+    case Phase::AttReveal:
+      attSnapshot(events);
+      break;
+    case Phase::Awards:
+      if (awardIndex_ < awards_.size()) {
+        const Award& a = awards_[awardIndex_];
+        events.push_back(AwardEvent{static_cast<int>(awardIndex_) + 1,
+                                    static_cast<int>(awards_.size()), a.id, a.title,
+                                    a.description, a.playerIds, kAwardPoints});
+      }
       break;
     case Phase::MatchOver:
       if (matchOver_) events.push_back(*matchOver_);
