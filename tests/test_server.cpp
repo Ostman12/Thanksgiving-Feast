@@ -383,3 +383,123 @@ TEST(server_room_kept_if_someone_returns) {
   l.m.tick(T0 + 11 * 60 * 1000);
   CHECK_EQ(l.m.roomCount(), std::size_t(1));
 }
+
+// ---------------------------------------------------------------- Around the Table
+
+namespace {
+
+// Host presses Next until `type` arrives on connection `watch`. Returns that batch.
+Actions nextUntilMessage(Lobby& l, const std::string& type, ConnId watch) {
+  Actions a;
+  for (int i = 0; i < 40; ++i) {
+    a = l.m.handleMessage(1, msg("NEXT"), T0);
+    if (!ofType(to(a, watch), type).empty()) return a;
+  }
+  return a;
+}
+
+ConnId connOf(const Lobby& l, const std::string& playerId) {
+  for (const auto& [conn, id] : l.playerIds) {
+    if (id == playerId) return conn;
+  }
+  return 0;
+}
+
+}  // namespace
+
+TEST(server_att_over_json) {
+  Lobby l(4);
+  l.m.handleMessage(9, msg("WATCH_ROOM", {{"code", l.code}}), T0);
+  l.m.handleMessage(1, msg("START_MATCH"), T0);
+  Actions a = nextUntilMessage(l, "ATT_SUBJECT", 9);
+  std::vector<json> subj = ofType(to(a, 9), "ATT_SUBJECT");
+  CHECK_EQ(subj.size(), std::size_t(1));
+  if (subj.empty()) return;
+  std::string subjectId = subj[0]["payload"]["subjectId"];
+  CHECK_EQ(subj[0]["payload"]["total"], 4);
+  ConnId subject = connOf(l, subjectId);
+  ConnId other = subject == 1 ? 2 : 1;
+
+  // The preview goes to the subject only: never to other players or the display.
+  CHECK_EQ(ofType(to(a, subject), "ATT_PREVIEW").size(), std::size_t(1));
+  CHECK(ofType(to(a, other), "ATT_PREVIEW").empty());
+  CHECK(ofType(to(a, 9), "ATT_PREVIEW").empty());
+  json preview = ofType(to(a, subject), "ATT_PREVIEW").at(0)["payload"];
+  CHECK_EQ(preview["options"].size(), std::size_t(4));
+  CHECK_EQ(preview["skipsLeft"], 2);
+
+  CHECK_EQ(errorReason(l.m.handleMessage(other, msg("ATT_SKIP"), T0), other), std::string("not the subject"));
+  Actions skip = l.m.handleMessage(subject, msg("ATT_SKIP"), T0);
+  CHECK(ofType(to(skip, 9), "ATT_PREVIEW").empty());
+  json kept = ofType(to(skip, subject), "ATT_PREVIEW").at(0)["payload"];
+  CHECK_EQ(kept["skipsLeft"], 1);
+
+  Actions go = l.m.handleMessage(subject, msg("ATT_CONTINUE"), T0);
+  std::vector<json> q = ofType(to(go, 9), "ATT_QUESTION");
+  CHECK_EQ(q.size(), std::size_t(1));
+  if (q.empty()) return;
+  CHECK_EQ(q[0]["payload"]["question"], kept["question"]);  // the one they chose
+  CHECK_EQ(q[0]["payload"]["subjectId"], subjectId);
+
+  // Field checks.
+  CHECK_EQ(errorReason(l.m.handleMessage(other, msg("ATT_PICK"), T0), other), std::string("invalid message"));
+  CHECK_EQ(errorReason(l.m.handleMessage(other, msg("ATT_PICK", {{"option", 2}}), T0), other),
+           std::string("invalid message"));
+  CHECK_EQ(errorReason(l.m.handleMessage(other, msg("ATT_PICK", {{"option", "AB"}}), T0), other),
+           std::string("invalid option"));
+  CHECK_EQ(errorReason(l.m.handleMessage(subject, msg("ATT_PICK", {{"option", nullptr}}), T0), subject),
+           std::string("invalid option"));
+
+  // Everyone picks; one passes.
+  l.m.handleMessage(subject, msg("ATT_PICK", {{"option", "B"}}), T0);
+  Actions last;
+  for (ConnId c = 1; c <= 4; ++c) {
+    if (c == subject) continue;
+    json option = c == other ? json(nullptr) : json("B");
+    last = l.m.handleMessage(c, msg("ATT_PICK", {{"option", option}}), T0);
+  }
+  std::vector<json> result = ofType(to(last, 9), "ATT_RESULT");
+  CHECK_EQ(result.size(), std::size_t(1));
+  if (result.empty()) return;
+  json r = result[0]["payload"];
+  CHECK_EQ(r["answer"], "B");
+  CHECK_EQ(r["perfect"], true);  // 2 predictions, both right; the pass doesn't spoil it
+  CHECK_EQ(r["predictions"].size(), std::size_t(3));
+  bool sawPass = false;
+  for (const json& p : r["predictions"]) {
+    if (p["playerId"] == l.playerIds[other]) sawPass = p["option"].is_null();
+  }
+  CHECK(sawPass);
+}
+
+TEST(server_awards_over_json) {
+  Lobby l(4);
+  l.m.handleMessage(9, msg("WATCH_ROOM", {{"code", l.code}}), T0);
+  l.m.handleMessage(1, msg("START_MATCH"), T0);
+  // Nobody votes, so impostors escape: at least Master of Disguise is given.
+  Actions a = nextUntilMessage(l, "AWARD", 9);
+  std::vector<json> award = ofType(to(a, 9), "AWARD");
+  CHECK_EQ(award.size(), std::size_t(1));
+  if (award.empty()) return;
+  json w = award[0]["payload"];
+  CHECK_EQ(w["index"], 1);
+  CHECK_EQ(w["points"], 75);
+  CHECK(w["playerIds"].is_array() && !w["playerIds"].empty());
+  CHECK(w["title"].is_string() && w["description"].is_string());
+  Actions over = nextUntilMessage(l, "MATCH_OVER", 9);
+  std::vector<json> mo = ofType(to(over, 9), "MATCH_OVER");
+  CHECK(!mo.empty() && mo[0]["payload"]["awards"].size() >= std::size_t(1));
+}
+
+TEST(server_flag_off_has_no_att) {
+  RoomManager m(false, 7, /*withAroundTheTable=*/false);
+  Actions a = m.handleMessage(1, msg("CREATE_ROOM", {{"name", "P1"}}), T0);
+  std::string code = ofType(to(a, 1), "JOINED").at(0)["payload"]["code"];
+  for (ConnId c = 2; c <= 4; ++c) {
+    m.handleMessage(c, msg("JOIN_ROOM", {{"code", code}, {"name", "P" + std::to_string(c)}}), T0);
+  }
+  Actions start = m.handleMessage(1, msg("START_MATCH"), T0);
+  json started = ofType(to(start, 1), "MATCH_STARTED").at(0)["payload"];
+  CHECK_EQ(started["games"], json::array({"mystery", "wyr"}));
+  CHECK(!started["rounds"].contains("att"));
+}

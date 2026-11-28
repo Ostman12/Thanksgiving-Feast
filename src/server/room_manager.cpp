@@ -28,7 +28,8 @@ std::string normalizeCode(const std::string& raw) {
 
 bool isPlayerAction(const std::string& type) {
   return type == "START_MATCH" || type == "NEXT" || type == "END_MATCH" || type == "CAST_VOTE" ||
-         type == "GUESS_WORD" || type == "SUBMIT_CHOICE";
+         type == "GUESS_WORD" || type == "SUBMIT_CHOICE" || type == "ATT_SKIP" ||
+         type == "ATT_CONTINUE" || type == "ATT_PICK";
 }
 
 bool isJoinAction(const std::string& type) {
@@ -37,7 +38,8 @@ bool isJoinAction(const std::string& type) {
 
 }  // namespace
 
-RoomManager::RoomManager(bool testMode, std::uint32_t seed) : testMode_(testMode), rng_(seed) {}
+RoomManager::RoomManager(bool testMode, std::uint32_t seed, bool withAroundTheTable)
+    : testMode_(testMode), withAroundTheTable_(withAroundTheTable), rng_(seed) {}
 
 Room* RoomManager::findRoom(const std::string& code) {
   auto it = rooms_.find(code);
@@ -128,6 +130,18 @@ std::string RoomManager::playerAction(const Seat& seat, const std::string& type,
     if (!readString(payload, "choice", choice)) return "invalid message";
     return room.submitChoice(me, choice, nowMs);
   }
+  if (type == "ATT_SKIP") return room.attSkip(me, nowMs);
+  if (type == "ATT_CONTINUE") return room.attContinue(me, nowMs);
+  if (type == "ATT_PICK") {
+    // The key must be present; null means Pass. A string must be one letter A-D.
+    auto it = payload.find("option");
+    if (it == payload.end()) return "invalid message";
+    if (it->is_null()) return room.attPick(me, std::nullopt, nowMs);
+    if (!it->is_string()) return "invalid message";
+    std::string option = it->get<std::string>();
+    if (option.size() != 1) return "invalid option";
+    return room.attPick(me, option[0], nowMs);
+  }
   return "invalid message";
 }
 
@@ -137,7 +151,8 @@ void RoomManager::createRoom(ConnId conn, const json& payload, Actions& out) {
   std::string code = newRoomCode();
   if (code.empty()) return sendError(out, conn, "server full");
 
-  auto room = std::make_unique<Room>(code, testMode_, static_cast<std::uint32_t>(rng_()));
+  auto room = std::make_unique<Room>(code, testMode_, static_cast<std::uint32_t>(rng_()),
+                                     withAroundTheTable_);
   JoinResult joined = room->addPlayer(name);
   if (!joined.ok()) return sendError(out, conn, joined.error);  // Room is discarded.
 

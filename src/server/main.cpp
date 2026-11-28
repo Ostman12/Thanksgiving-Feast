@@ -1,7 +1,7 @@
 // Feast Mode server: serves the client files over HTTP and the game over a
 // WebSocket at /ws, on one port (docs/design.md).
 //
-//   feast_server [--port 8080] [--test-mode] [--client-dir client]
+//   feast_server [--port 8080] [--test-mode] [--no-around-the-table] [--client-dir client]
 //
 // Threading: Crow runs handlers on several threads. Every handler and the
 // timer thread take `lock` before touching the RoomManager or the
@@ -33,6 +33,7 @@ std::int64_t nowMs() {
 struct Options {
   int port = 8080;
   bool testMode = false;
+  bool aroundTheTable = true;  // --no-around-the-table turns Game 3 off
   std::string clientDir = "client";
 };
 
@@ -42,12 +43,15 @@ Options parseArgs(int argc, char** argv) {
     std::string arg = argv[i];
     if (arg == "--test-mode") {
       opt.testMode = true;
+    } else if (arg == "--no-around-the-table") {
+      opt.aroundTheTable = false;
     } else if (arg == "--port" && i + 1 < argc) {
       opt.port = std::atoi(argv[++i]);
     } else if (arg == "--client-dir" && i + 1 < argc) {
       opt.clientDir = argv[++i];
     } else {
-      std::cerr << "Usage: feast_server [--port N] [--test-mode] [--client-dir DIR]\n";
+      std::cerr << "Usage: feast_server [--port N] [--test-mode] [--no-around-the-table]"
+                   " [--client-dir DIR]\n";
       std::exit(2);
     }
   }
@@ -72,7 +76,7 @@ int main(int argc, char** argv) {
   // recursive_mutex: closing a socket can run its onclose handler right away
   // on the same thread, which then takes the lock again.
   std::recursive_mutex lock;
-  feast::RoomManager manager(opt.testMode, std::random_device{}());
+  feast::RoomManager manager(opt.testMode, std::random_device{}(), opt.aroundTheTable);
   std::unordered_map<crow::websocket::connection*, feast::ConnId> idOf;
   std::unordered_map<feast::ConnId, crow::websocket::connection*> connOf;
   feast::ConnId nextId = 1;  // 0 means "no connection" in RoomManager.
@@ -156,7 +160,8 @@ int main(int argc, char** argv) {
   });
 
   std::cout << "Feast Mode on port " << opt.port << (opt.testMode ? " (test mode)" : "")
-            << ", serving " << opt.clientDir << std::endl;
+            << (opt.aroundTheTable ? "" : " (Around the Table off)") << ", serving "
+            << opt.clientDir << std::endl;
   app.bindaddr("0.0.0.0").port(static_cast<std::uint16_t>(opt.port)).multithreaded().run();
 
   running = false;

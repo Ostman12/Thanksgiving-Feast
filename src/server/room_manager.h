@@ -36,7 +36,8 @@ constexpr std::int64_t kEmptyRoomLifetimeMs = 10 * 60 * 1000;  // rules.md: 10 m
 
 class RoomManager {
  public:
-  RoomManager(bool testMode, std::uint32_t seed);
+  // withAroundTheTable false = the server's --no-around-the-table flag.
+  RoomManager(bool testMode, std::uint32_t seed, bool withAroundTheTable = true);
 
   Actions handleMessage(ConnId conn, const std::string& text, std::int64_t nowMs);
   Actions handleClose(ConnId conn, std::int64_t nowMs);
@@ -69,6 +70,7 @@ class RoomManager {
   static void sendError(Actions& out, ConnId conn, const std::string& reason);
 
   bool testMode_;
+  bool withAroundTheTable_;
   std::mt19937 rng_;
   std::map<std::string, std::unique_ptr<Room>> rooms_;
   std::map<ConnId, Seat> seats_;
