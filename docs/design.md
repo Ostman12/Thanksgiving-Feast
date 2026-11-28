@@ -95,6 +95,9 @@ Kahoot, done like this:
   animated with CSS `transform` only (cheap on phones). Hidden under
   `prefers-reduced-motion`.
 - Emoji for icons (🦃 🥧 🕵️ ✅). No image files. An optional inline SVG logo comes last.
+- Avatars are a colored circle with an emoji and an optional emoji accessory on top, drawn
+  with CSS only. The server sends names (`turkey`, `orange`, `crown`); `common.js` holds the
+  one table that turns names into emoji and colors, shared by phones and the display.
 - System fonts only. No web fonts, which would be one more download that can fail.
 - Big type and tap targets (buttons at least 48px tall), portrait at ~375px wide.
 - Secret word: CSS `filter: blur()`, toggled by tapping. This is client-only.

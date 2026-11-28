@@ -99,6 +99,7 @@ JoinResult Room::addPlayer(const std::string& rawName) {
   player.id = "p" + std::to_string(nextPlayerNumber_++);
   player.name = name;
   player.token = makeToken();
+  player.avatar = randomAvatar(rng_);
   players_.push_back(player);
 
   if (hostId_.empty()) hostId_ = player.id;
@@ -107,6 +108,16 @@ JoinResult Room::addPlayer(const std::string& rawName) {
   result.playerId = player.id;
   result.token = player.token;
   return result;
+}
+
+std::string Room::setAvatar(const std::string& playerId, const Avatar& avatar) {
+  if (phase_ != Phase::Lobby) return "wrong phase";
+  Player* p = findPlayerMutable(playerId);
+  if (p == nullptr) return "not in a room";
+  if (!isValidAvatar(avatar)) return "invalid avatar";
+  p->avatar = avatar;
+  emitRoomState();
+  return "";
 }
 
 JoinResult Room::rejoin(const std::string& token, std::int64_t nowMs) {
@@ -417,7 +428,7 @@ RoomStateEvent Room::roomStateEvent() const {
   state.phase = phase_;
   state.testMode = testMode_;
   for (const Player& p : players_) {
-    state.players.push_back({p.id, p.name, p.score, p.connected});
+    state.players.push_back({p.id, p.name, p.score, p.connected, p.avatar});
   }
   return state;
 }

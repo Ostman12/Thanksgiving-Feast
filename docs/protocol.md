@@ -58,6 +58,7 @@ never happen and `awards` (or `match_over` if there are none) follows the last
 | `JOIN_ROOM`     | `code`, `name`             | Sender not in a room. Room exists, is in `lobby`, has < 10 players, name not taken.                          |
 | `REJOIN`        | `code`, `token`            | Sender not in a room. Token matches a player in that room. Any phase.                                        |
 | `WATCH_ROOM`    | `code`                     | Sender not in a room. Room exists. Any phase. Makes this socket a display (see Display), not a player.        |
+| `SET_AVATAR`    | `emoji`, `color`, `accessory` (names from the lists in rules.md, Avatars) | `lobby` only (`"wrong phase"` otherwise). Changes the sender's own avatar. A name not on its list is `ERROR` `"invalid avatar"`. Answered with `ROOM_STATE` to everyone. |
 | `START_MATCH`   | `{}`                       | `lobby`, host only, 4+ connected players (2+ in test mode).                                                  |
 | `CAST_VOTE`     | `targetId` (string or `null`) | `mystery_vote`, sender is in the round, has not voted. `null` means Skip. A string must be a player in the round who is not the sender. |
 | `GUESS_WORD`    | `word`                     | `mystery_discuss` (a steal) or `mystery_guess` (final guess), sender is the impostor, has not guessed this round. Word is 1–30 characters after trimming. No `SUBMITTED` is sent for it (it would name the impostor). |
@@ -86,7 +87,7 @@ anyone but the subject, and there is no host-only or private view of anyone's pi
 | Type | Payload | Sent to |
 |---|---|---|
 | `JOINED`        | `playerId`, `token`, `code` | **The joining player only.** Reply to `CREATE_ROOM`, `JOIN_ROOM`, `REJOIN`. Client stores `code` and `token` in `localStorage`. |
-| `ROOM_STATE`    | `code`, `hostId`, `phase`, `testMode`, `players`: [`{id, name, score, connected}`] | Everyone in the room, on any change to players, host, phase, or scores. |
+| `ROOM_STATE`    | `code`, `hostId`, `phase`, `testMode`, `players`: [`{id, name, score, connected, avatar: {emoji, color, accessory}}`] | Everyone in the room, on any change to players, host, phase, or scores. |
 | `ERROR`         | `reason` (human-readable string) | The sender only. |
 | `MATCH_STARTED` | `games`: `["mystery", "wyr", "att"]`, `rounds`: `{mystery: 3, wyr: 3, att: N}` where N is the number of players when the match starts (without `"att"` / `att` under `--no-around-the-table`) | Everyone. |
 | `PHASE`         | `game`, `phase`, `round` (1-based), `deadline` (ms timestamp, or `null`) | Everyone. |
@@ -142,4 +143,4 @@ opens `/display`, enters the room code, and sends `WATCH_ROOM`.
 `"not in a room"`, `"room not found"`, `"room is full"`, `"name taken"`,
 `"match already started"`, `"not the host"`, `"not enough players"`, `"wrong phase"`,
 `"already submitted"`, `"cannot vote for yourself"`, `"not the impostor"`,
-`"not a player"`, `"invalid option"`, `"not the subject"`, `"no skips left"`, `"invalid message"`.
+`"not a player"`, `"invalid option"`, `"invalid avatar"`, `"not the subject"`, `"no skips left"`, `"invalid message"`.

@@ -15,6 +15,16 @@ this file disagree, the code is wrong (or this file gets updated first, on purpo
 - If the host disconnects, they stay host for **20 seconds** so a locked phone doesn't
   lose it (deadlines keep running meanwhile). After that, host passes to the connected
   player who joined earliest, until the creator comes back.
+- **Avatars.** Every player has an avatar: an emoji, a background color, and an optional
+  accessory on top. Joining gives you a random one; you can change it **in the lobby only**
+  (before the host taps Start, and again back in the lobby after a match). It shows next to
+  your name everywhere. Choices:
+  - Emoji: `turkey` 🦃, `pie` 🥧, `leaf` 🍂, `corn` 🌽, `maple` 🍁, `bear` 🐻, `fox` 🦊,
+    `dog` 🐶, `cat` 🐱, `frog` 🐸, `panda` 🐼, `penguin` 🐧, `owl` 🦉, `cowboy` 🤠,
+    `cool` 😎, `alien` 👽
+  - Color: `orange`, `cranberry`, `gold`, `green`, `blue`, `purple`, `pink`, `brown`
+  - Accessory: `none`, `tophat` 🎩, `crown` 👑, `bow` 🎀, `cap` 🧢, `gradcap` 🎓,
+    `flower` 🌸
 - Players can only join while the room is in the lobby. A disconnected player can rejoin
   at any time with their rejoin token (see Disconnects).
 
@@ -259,5 +269,5 @@ The game continues without disconnected players and adjusts:
 
 ## Out of scope for Saturday
 
-Pumpkin Bowling (stretch), Fake Family Facts, in-game chat, avatars, sound, accounts,
+Pumpkin Bowling (stretch), Fake Family Facts, in-game chat, photo avatars, sound, accounts,
 persistence across server restarts, any host-only or hidden view of players' picks.

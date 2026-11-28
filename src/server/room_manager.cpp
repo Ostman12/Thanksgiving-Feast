@@ -29,7 +29,7 @@ std::string normalizeCode(const std::string& raw) {
 bool isPlayerAction(const std::string& type) {
   return type == "START_MATCH" || type == "NEXT" || type == "END_MATCH" || type == "CAST_VOTE" ||
          type == "GUESS_WORD" || type == "SUBMIT_CHOICE" || type == "ATT_SKIP" ||
-         type == "ATT_CONTINUE" || type == "ATT_PICK";
+         type == "ATT_CONTINUE" || type == "ATT_PICK" || type == "SET_AVATAR";
 }
 
 bool isJoinAction(const std::string& type) {
@@ -129,6 +129,14 @@ std::string RoomManager::playerAction(const Seat& seat, const std::string& type,
     std::string choice;
     if (!readString(payload, "choice", choice)) return "invalid message";
     return room.submitChoice(me, choice, nowMs);
+  }
+  if (type == "SET_AVATAR") {
+    Avatar avatar;
+    if (!readString(payload, "emoji", avatar.emoji) || !readString(payload, "color", avatar.color) ||
+        !readString(payload, "accessory", avatar.accessory)) {
+      return "invalid message";
+    }
+    return room.setAvatar(me, avatar);
   }
   if (type == "ATT_SKIP") return room.attSkip(me, nowMs);
   if (type == "ATT_CONTINUE") return room.attContinue(me, nowMs);

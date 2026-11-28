@@ -31,8 +31,14 @@ json pointsToJson(const std::vector<PointsDelta>& points) {
 json toJson(const RoomStateEvent& e) {
   json players = json::array();
   for (const PublicPlayer& p : e.players) {
-    players.push_back(
-        {{"id", p.id}, {"name", p.name}, {"score", p.score}, {"connected", p.connected}});
+    json avatar = {{"emoji", p.avatar.emoji},
+                   {"color", p.avatar.color},
+                   {"accessory", p.avatar.accessory}};
+    players.push_back({{"id", p.id},
+                       {"name", p.name},
+                       {"score", p.score},
+                       {"connected", p.connected},
+                       {"avatar", avatar}});
   }
   return message("ROOM_STATE", {{"code", e.code},
                                 {"hostId", e.hostId},

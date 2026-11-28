@@ -21,6 +21,7 @@ struct Player {
   int score = 0;
   bool connected = true;
   std::optional<std::int64_t> disconnectedAtMs;  // Set while disconnected.
+  Avatar avatar;  // Random on join; changeable in the lobby.
 };
 
 struct JoinResult {
@@ -94,6 +95,9 @@ class Room {
 
   // CREATE_ROOM / JOIN_ROOM. The first player to join becomes host.
   JoinResult addPlayer(const std::string& rawName);
+
+  // SET_AVATAR. Lobby only; every part must be a name on its list.
+  std::string setAvatar(const std::string& playerId, const Avatar& avatar);
 
   // REJOIN. Marks the player connected again; seat and score are kept.
   // May resume a paused match.

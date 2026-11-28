@@ -9,6 +9,8 @@
 #include <variant>
 #include <vector>
 
+#include "game/avatar.h"
+
 namespace feast {
 
 // Phases from docs/protocol.md.
@@ -42,6 +44,7 @@ struct PublicPlayer {
   std::string name;
   int score = 0;
   bool connected = true;
+  Avatar avatar;
 };
 
 // ROOM_STATE
