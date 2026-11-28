@@ -6,8 +6,8 @@ this file disagree, the code is wrong (or this file gets updated first, on purpo
 ## Players and rooms
 
 - A room has a 4-letter uppercase code (letters only, no `I` or `O` to avoid confusion).
-- A room holds 3–10 players. Normal mode needs 4+ to start; test mode (server flag
-  `--test-mode`) needs 3+.
+- A room holds up to 10 players. Normal mode needs 4+ to start; test mode (server flag
+  `--test-mode`, for testing only) needs 2+.
 - Names are 1–16 characters after trimming whitespace, and unique within a room
   (case-insensitive).
 - The player who creates the room is the host, and is host again whenever they are
@@ -141,7 +141,8 @@ The game continues without disconnected players and adjusts:
 - **Rejoin:** a player who reconnects with their rejoin token gets their seat, score, and
   (if the round is still running) their private word back. They take part from the
   current phase on.
-- **Too few players:** if fewer than 3 players are connected when a round would start,
+- **Too few players:** if fewer than 3 players (2 in test mode) are connected when a round
+  would start,
   the match pauses in place until enough reconnect, or the host ends the match early
   (final leaderboard is shown).
 - **Everyone gone:** a room with no connected players for 10 minutes is deleted.

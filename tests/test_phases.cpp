@@ -23,11 +23,24 @@ TEST(start_needs_4_players) {
   CHECK_EQ(s.room.phase(), Phase::Lobby);
 }
 
-TEST(start_needs_3_players_in_test_mode) {
+TEST(start_needs_2_players_in_test_mode) {
+  Setup one(1, true);
+  CHECK_EQ(one.room.startMatch(one.host(), T0), std::string("not enough players"));
   Setup two(2, true);
-  CHECK_EQ(two.room.startMatch(two.host(), T0), std::string("not enough players"));
-  Setup three(3, true);
-  CHECK_EQ(three.room.startMatch(three.host(), T0), std::string(""));
+  CHECK_EQ(two.room.startMatch(two.host(), T0), std::string(""));
+}
+
+TEST(two_player_test_mode_plays_instead_of_pausing) {
+  Setup s(2, true);
+  CHECK_EQ(s.room.startMatch(s.host(), T0), std::string(""));
+  CHECK_EQ(s.room.phase(), Phase::MysteryDiscuss);
+}
+
+TEST(normal_mode_still_pauses_below_3_connected) {
+  Setup s(2, false);
+  CHECK_EQ(s.room.minConnectedToPlay(), std::size_t(3));
+  Setup t(2, true);
+  CHECK_EQ(t.room.minConnectedToPlay(), std::size_t(2));
 }
 
 TEST(start_counts_only_connected_players) {

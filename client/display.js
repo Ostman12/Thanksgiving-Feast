@@ -153,7 +153,7 @@ function renderLobby() {
   // Open /display through the tunnel URL: this shows its own address.
   $('join-url').textContent = location.host;
   $('lobby-code').textContent = state.room.code;
-  const needed = state.room.testMode ? 3 : 4;
+  const needed = state.room.testMode ? 2 : 4;
   fill('lobby-players',
     players().map((p) => el('li', { class: p.connected ? '' : 'away' },
       p.id === state.room.hostId ? '👑 ' : '', p.name)),
@@ -211,7 +211,7 @@ function renderGame() {
       return renderWyrReveal();
     case 'paused':
       return fill('game-body', el('p', { class: 'huge-text center' }, '⏸️ Paused'),
-        el('p', { class: 'big center' }, 'Waiting for at least 3 players to reconnect.'));
+        el('p', { class: 'big center' }, `Waiting for at least ${state.room.testMode ? 2 : 3} players to reconnect.`));
     default:
       return fill('game-body');
   }

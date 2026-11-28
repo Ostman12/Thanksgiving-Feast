@@ -302,7 +302,7 @@ function renderLobby() {
       p.id === state.me ? ' (you)' : '',
       p.connected ? '' : ' · away')));
 
-  const needed = state.room.testMode ? 3 : 4;
+  const needed = state.room.testMode ? 2 : 4;
   const here = players().filter((p) => p.connected).length;
   if (isHost()) {
     fill('lobby-host',

@@ -30,8 +30,9 @@ struct JoinResult {
 
 constexpr std::size_t kMaxPlayers = 10;
 constexpr std::size_t kMinPlayersToStart = 4;
-constexpr std::size_t kMinPlayersToStartTestMode = 3;
+constexpr std::size_t kMinPlayersToStartTestMode = 2;
 constexpr std::size_t kMinConnectedToPlay = 3;  // Fewer at a round start pauses.
+constexpr std::size_t kMinConnectedToPlayTestMode = 2;
 constexpr int kMysteryRounds = 3;
 constexpr int kWyrRounds = 3;
 
@@ -118,6 +119,10 @@ class Room {
   int round() const { return round_; }  // While paused: the round waiting to start.
   std::optional<std::int64_t> deadlineMs() const { return deadlineMs_; }
   bool testMode() const { return testMode_; }
+  // Fewer connected players than this at a round start pauses the match.
+  std::size_t minConnectedToPlay() const {
+    return testMode_ ? kMinConnectedToPlayTestMode : kMinConnectedToPlay;
+  }
   const std::vector<Player>& players() const { return players_; }  // Join order.
   const Player* findPlayer(const std::string& playerId) const;
   std::size_t connectedCount() const;

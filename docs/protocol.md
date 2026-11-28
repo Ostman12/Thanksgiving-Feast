@@ -29,7 +29,7 @@ milliseconds.
 | `mystery_reveal`  | mystery | none     | host `NEXT`                                                            |
 | `wyr_choose`      | wyr     | 30 s     | all connected players submitted, deadline, or host `NEXT`              |
 | `wyr_reveal`      | wyr     | none     | host `NEXT`                                                            |
-| `paused`          | either  | none     | 3+ players connected again (resumes), or host `END_MATCH`              |
+| `paused`          | either  | none     | 3+ players (2+ in test mode) connected again (resumes), or host `END_MATCH` |
 | `match_over`      | none    | none     | host `NEXT` returns everyone to `lobby` with scores reset              |
 
 In `mystery_vote`, a round player is due a vote if they are connected or disconnected less
@@ -48,7 +48,7 @@ void reveal replays the **same** `round` number with new words and a new imposto
 | `JOIN_ROOM`     | `code`, `name`             | Sender not in a room. Room exists, is in `lobby`, has < 10 players, name not taken.                          |
 | `REJOIN`        | `code`, `token`            | Sender not in a room. Token matches a player in that room. Any phase.                                        |
 | `WATCH_ROOM`    | `code`                     | Sender not in a room. Room exists. Any phase. Makes this socket a display (see Display), not a player.        |
-| `START_MATCH`   | `{}`                       | `lobby`, host only, 4+ connected players (3+ in test mode).                                                  |
+| `START_MATCH`   | `{}`                       | `lobby`, host only, 4+ connected players (2+ in test mode).                                                  |
 | `CAST_VOTE`     | `targetId` (string or `null`) | `mystery_vote`, sender is in the round, has not voted. `null` means Skip. A string must be a player in the round who is not the sender. |
 | `GUESS_WORD`    | `word`                     | `mystery_discuss` (a steal) or `mystery_guess` (final guess), sender is the impostor, has not guessed this round. Word is 1–30 characters after trimming. No `SUBMITTED` is sent for it (it would name the impostor). |
 | `SUBMIT_CHOICE` | `choice`, `prediction` (each `"A"` or `"B"`) | `wyr_choose`, has not submitted.                                                         |

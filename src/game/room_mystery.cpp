@@ -32,7 +32,7 @@ void Room::setupMysteryRound() {
   mystery_.impostorWord = pairs[pairIndex].impostorWord;
 
   // A random connected player who hasn't been impostor this match. If all of
-  // them have, anyone connected. (startRound guarantees 3+ are connected.)
+  // them have, anyone connected. (startRound guarantees 3+, or 2+ in test mode.)
   std::vector<std::string> candidates;
   for (const Player& p : players_) {
     if (p.connected && !contains(pastImpostors_, p.id)) candidates.push_back(p.id);

@@ -110,7 +110,7 @@ JoinResult Room::rejoin(const std::string& token, std::int64_t nowMs) {
   result.playerId = player->id;
   result.token = player->token;
 
-  if (phase_ == Phase::Paused && connectedCount() >= kMinConnectedToPlay) {
+  if (phase_ == Phase::Paused && connectedCount() >= minConnectedToPlay()) {
     beginRound(nowMs);  // Resume: start the waiting round.
   } else {
     emitRoomState();
@@ -268,12 +268,12 @@ void Room::advance(std::int64_t nowMs) {
   }
 }
 
-// rules.md: if fewer than 3 players are connected when a round would start,
+// rules.md: if fewer than 3 players (2 in test mode) are connected when a round would start,
 // the match pauses until enough reconnect (see rejoin) or the host ends it.
 void Room::startRound(Game game, int round, std::int64_t nowMs) {
   game_ = game;
   round_ = round;
-  if (connectedCount() < kMinConnectedToPlay) {
+  if (connectedCount() < minConnectedToPlay()) {
     phase_ = Phase::Paused;
     deadlineMs_.reset();
     emitRoomState();
