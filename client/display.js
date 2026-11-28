@@ -195,7 +195,7 @@ function renderGame() {
       return fill('game-body', el('p', { class: 'huge-text center' }, '🕵️ Vote on your phones'), progressList('voted'));
     case 'mystery_guess':
       return fill('game-body', voteSummary(state.voteResult),
-        el('p', { class: 'big center' }, '🎯 The impostor is guessing the word…'));
+        el('p', { class: 'big center' }, '🙏 Hail mary: the impostor gets one last guess at the word…'));
     case 'mystery_reveal':
       return renderMysteryReveal();
     case 'wyr_choose': {
@@ -226,12 +226,19 @@ function renderMysteryReveal() {
       el('p', { class: 'big center' }, `The impostor (${nameOf(r.impostorId)}) left. This round will be replayed.`),
       el('p', { class: 'big center' }, `Word: ${r.mainWord} · Impostor had: ${r.impostorWord}`));
   }
-  const votes = state.voteResult ? state.voteResult.votes : [];
+  const votes = r.earlyGuess || !state.voteResult ? [] : state.voteResult.votes;
+  let guessLine;
+  if (r.earlyGuess) {
+    guessLine = r.guessCorrect
+      ? `🎯 ${nameOf(r.impostorId)} guessed “${r.guess}” mid-discussion and STOLE the round!`
+      : `😬 ${nameOf(r.impostorId)} guessed “${r.guess}”, wrong, and outed themselves!`;
+  } else {
+    guessLine = r.guess === null ? '' : `Hail mary: “${r.guess}” ${r.guessCorrect ? '✅' : '❌'}`;
+  }
   fill('game-body',
     el('p', { class: 'huge-text center' }, `The impostor was ${nameOf(r.impostorId)} 🕵️`),
     el('p', { class: 'big center' }, 'Word: ', el('b', {}, r.mainWord), ' · Impostor had: ', el('b', {}, r.impostorWord)),
-    el('p', { class: 'big center' },
-      r.guess === null ? 'No guess.' : `Guess: “${r.guess}” ${r.guessCorrect ? '✅' : '❌'}`),
+    guessLine ? el('p', { class: 'big center' }, guessLine) : null,
     el('ul', { class: 'players grid' }, votes.map((v) =>
       el('li', {}, `${nameOf(v.voterId)} → ${v.targetId ? nameOf(v.targetId) : 'Skip'}`))),
     pointsList(r.points));

@@ -53,6 +53,7 @@ struct MysteryRoundState {
   std::vector<Vote> votes;  // In the order cast.
   std::optional<VoteResultEvent> voteResult;
   std::optional<std::string> guess;
+  bool earlyGuess = false;  // The guess was a steal during discussion.
   std::optional<RoundResultEvent> roundResult;
 };
 

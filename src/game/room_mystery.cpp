@@ -71,9 +71,13 @@ std::string Room::castVote(const std::string& playerId, const std::optional<std:
   return "";
 }
 
+// GUESS_WORD. Two moments (rules.md Mystery):
+//   discuss: a steal. Right wins the round, wrong outs the impostor. Either way
+//            the round ends now.
+//   guess:   the final guess (hail mary) after being caught.
 std::string Room::guessWord(const std::string& playerId, const std::string& rawWord,
                             std::int64_t nowMs) {
-  if (phase_ != Phase::MysteryGuess) return "wrong phase";
+  if (phase_ != Phase::MysteryDiscuss && phase_ != Phase::MysteryGuess) return "wrong phase";
   if (playerId != mystery_.impostorId) return "not the impostor";
   if (mystery_.guess) return "already submitted";
   std::string word = trimWhitespace(rawWord);
@@ -82,12 +86,18 @@ std::string Room::guessWord(const std::string& playerId, const std::string& rawW
 
   mystery_.guess = word;
   // No SUBMITTED here: only the impostor can guess, so it would name them to
-  // the whole room. The guess ends the phase right away instead.
-  advance(nowMs);
+  // the whole room. The guess ends the round or phase right away instead.
+  if (phase_ == Phase::MysteryDiscuss) {
+    mystery_.earlyGuess = true;
+    finishMysteryRound(false, nowMs);
+  } else {
+    advance(nowMs);
+  }
   return "";
 }
 
-// End of the vote phase: tally, tell everyone, then the impostor's guess.
+// End of the vote phase: tally and tell everyone. Caught: the impostor gets a
+// final guess. Escaped: straight to the reveal.
 void Room::finishVote(std::int64_t nowMs) {
   const Player* impostor = findPlayer(mystery_.impostorId);
   if (impostor == nullptr || !impostor->connected) {
@@ -100,7 +110,11 @@ void Room::finishVote(std::int64_t nowMs) {
   VoteResultEvent result{mystery_.votes, tally.accusedId, tally.caught};
   mystery_.voteResult = result;
   emit(std::move(result));
-  enterPhase(Phase::MysteryGuess, nowMs);
+  if (tally.caught) {
+    enterPhase(Phase::MysteryGuess, nowMs);
+  } else {
+    finishMysteryRound(false, nowMs);
+  }
 }
 
 // Enter the reveal. A void round (impostor left before the vote result)
@@ -115,9 +129,10 @@ void Room::finishMysteryRound(bool voided, std::int64_t nowMs) {
   if (!voided) {
     bool caught = mystery_.voteResult && mystery_.voteResult->caught;
     result.guess = mystery_.guess;
+    result.earlyGuess = mystery_.earlyGuess;
     if (mystery_.guess) result.guessCorrect = isCorrectGuess(*mystery_.guess, mystery_.mainWord);
-    result.points = mysteryPoints(mystery_.playerIds, mystery_.impostorId, caught,
-                                  result.guessCorrect.value_or(false));
+    result.points = mysteryPoints(mystery_.playerIds, mystery_.impostorId, mystery_.earlyGuess,
+                                  caught, result.guessCorrect.value_or(false));
     for (const PointsDelta& d : result.points) {
       if (Player* p = findPlayerMutable(d.playerId)) p->score += d.delta;
     }

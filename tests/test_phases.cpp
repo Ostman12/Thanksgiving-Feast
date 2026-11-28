@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <vector>
 
 #include "game/room.h"
@@ -89,6 +90,7 @@ TEST(cannot_join_after_match_started) {
 TEST(deadlines_advance_timed_phases) {
   Setup s(4);
   s.room.startMatch(s.host(), T0);
+  std::vector<std::string> innocents = nonImpostors(s.room.takeOutbox());
 
   s.room.tick(T0 + 99'999);
   CHECK_EQ(s.room.phase(), Phase::MysteryDiscuss);  // not yet
@@ -98,6 +100,14 @@ TEST(deadlines_advance_timed_phases) {
   CHECK_EQ(s.room.phase(), Phase::MysteryVote);
   CHECK(s.room.deadlineMs() == std::optional<std::int64_t>(t + 45'000));
 
+  // The guess phase only follows a catch, so two innocents vote out the
+  // impostor; the deadline ends the vote with the other two missing.
+  std::string impostor;
+  for (const JoinResult& p : s.players) {
+    if (std::find(innocents.begin(), innocents.end(), p.playerId) == innocents.end()) impostor = p.playerId;
+  }
+  s.room.castVote(innocents[0], impostor, t);
+  s.room.castVote(innocents[1], impostor, t);
   t += 45'000;
   s.room.tick(t);
   CHECK_EQ(s.room.phase(), Phase::MysteryGuess);
@@ -149,14 +159,16 @@ TEST(full_match_order) {
   Setup s(4);
   s.room.startMatch(s.host(), T0);
 
+  // Nobody votes, so the impostor escapes each round and the vote goes
+  // straight to the reveal (the guess phase only follows a catch).
   struct Step { Phase phase; Game game; int round; };
   const std::vector<Step> expected = {
       {Phase::MysteryDiscuss, Game::Mystery, 1}, {Phase::MysteryVote, Game::Mystery, 1},
-      {Phase::MysteryGuess, Game::Mystery, 1},   {Phase::MysteryReveal, Game::Mystery, 1},
+      {Phase::MysteryReveal, Game::Mystery, 1},
       {Phase::MysteryDiscuss, Game::Mystery, 2}, {Phase::MysteryVote, Game::Mystery, 2},
-      {Phase::MysteryGuess, Game::Mystery, 2},   {Phase::MysteryReveal, Game::Mystery, 2},
+      {Phase::MysteryReveal, Game::Mystery, 2},
       {Phase::MysteryDiscuss, Game::Mystery, 3}, {Phase::MysteryVote, Game::Mystery, 3},
-      {Phase::MysteryGuess, Game::Mystery, 3},   {Phase::MysteryReveal, Game::Mystery, 3},
+      {Phase::MysteryReveal, Game::Mystery, 3},
       {Phase::WyrChoose, Game::Wyr, 1},          {Phase::WyrReveal, Game::Wyr, 1},
       {Phase::WyrChoose, Game::Wyr, 2},          {Phase::WyrReveal, Game::Wyr, 2},
       {Phase::WyrChoose, Game::Wyr, 3},          {Phase::WyrReveal, Game::Wyr, 3},

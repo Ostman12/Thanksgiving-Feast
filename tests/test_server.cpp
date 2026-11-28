@@ -176,11 +176,13 @@ TEST(server_display_never_sees_secrets_during_a_round) {
   for (ConnId c = 1; c <= 4; ++c) words.push_back(ofType(to(start, c), "YOUR_WORD").at(0)["payload"]["word"]);
 
   run(1, msg("NEXT"));                                                       // -> vote
-  for (ConnId c = 1; c <= 4; ++c) run(c, msg("CAST_VOTE", {{"targetId", nullptr}}));  // -> guess
+  for (ConnId c = 1; c <= 4; ++c) run(c, msg("CAST_VOTE", {{"targetId", nullptr}}));  // -> escaped -> reveal
 
-  // Up to here (before ROUND_RESULT), the display got no word, token or YOUR_WORD.
+  // Everything the display got before ROUND_RESULT (the reveal, which is
+  // allowed to show words and the impostor): no word, token or YOUR_WORD.
   for (const OutgoingText& s : all) {
     if (s.conn != 9) continue;
+    if (s.text.find("ROUND_RESULT") != std::string::npos) break;
     CHECK(s.text.find("YOUR_WORD") == std::string::npos);
     CHECK(s.text.find("token") == std::string::npos);
     for (const std::string& w : words) CHECK(s.text.find("\"" + w + "\"") == std::string::npos);
@@ -238,8 +240,11 @@ TEST(server_json_shapes) {
 TEST(server_wyr_messages_over_json) {
   Lobby l(4);
   l.m.handleMessage(1, msg("START_MATCH"), T0);
+  // Host presses Next through the 3 Mystery rounds until the first prompt.
   Actions a;
-  for (int i = 0; i < 12; ++i) a = l.m.handleMessage(1, msg("NEXT"), T0);  // 3 mystery rounds
+  for (int i = 0; i < 20 && ofType(to(a, 3), "WYR_PROMPT").empty(); ++i) {
+    a = l.m.handleMessage(1, msg("NEXT"), T0);
+  }
   CHECK_EQ(ofType(to(a, 3), "WYR_PROMPT").size(), std::size_t(1));
   CHECK_EQ(errorReason(l.m.handleMessage(2, msg("SUBMIT_CHOICE", {{"choice", "A"}}), T0), 2),
            std::string("invalid message"));

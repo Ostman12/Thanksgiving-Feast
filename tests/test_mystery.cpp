@@ -74,30 +74,41 @@ int pointsFor(const std::vector<PointsDelta>& points, const std::string& id) {
 const std::vector<std::string> kRound = {"a", "b", "imp", "c"};
 }  // namespace
 
-TEST(points_caught_no_guess) {
-  auto p = mysteryPoints(kRound, "imp", true, false);
-  CHECK_EQ(pointsFor(p, "a"), 100);
-  CHECK_EQ(pointsFor(p, "c"), 100);
-  CHECK_EQ(pointsFor(p, "imp"), 0);
-  CHECK_EQ(p.size(), std::size_t(4));
+// One test per row of the rules.md Mystery scoring table.
+// mysteryPoints(ids, impostor, earlyGuess, caught, guessCorrect)
+
+TEST(points_steal_right) {
+  auto p = mysteryPoints(kRound, "imp", true, false, true);
+  CHECK_EQ(pointsFor(p, "imp"), 300);
+  CHECK_EQ(pointsFor(p, "a"), 0);
+  CHECK_EQ(pointsFor(p, "c"), 0);
 }
 
-TEST(points_caught_then_correct_guess) {
-  auto p = mysteryPoints(kRound, "imp", true, true);
+TEST(points_steal_wrong_counts_as_caught) {
+  auto p = mysteryPoints(kRound, "imp", true, false, false);
+  CHECK_EQ(pointsFor(p, "imp"), 0);
   CHECK_EQ(pointsFor(p, "a"), 100);
-  CHECK_EQ(pointsFor(p, "imp"), 150);
+  CHECK_EQ(pointsFor(p, "c"), 100);
 }
 
 TEST(points_escaped) {
-  auto p = mysteryPoints(kRound, "imp", false, false);
+  auto p = mysteryPoints(kRound, "imp", false, false, false);
   CHECK_EQ(pointsFor(p, "a"), 0);
   CHECK_EQ(pointsFor(p, "imp"), 200);
 }
 
-TEST(points_escaped_then_correct_guess) {
-  auto p = mysteryPoints(kRound, "imp", false, true);
-  CHECK_EQ(pointsFor(p, "a"), 0);
-  CHECK_EQ(pointsFor(p, "imp"), 250);
+TEST(points_caught_then_hail_mary_right) {
+  auto p = mysteryPoints(kRound, "imp", false, true, true);
+  CHECK_EQ(pointsFor(p, "a"), 100);
+  CHECK_EQ(pointsFor(p, "imp"), 100);
+}
+
+TEST(points_caught_no_or_wrong_guess) {
+  auto p = mysteryPoints(kRound, "imp", false, true, false);
+  CHECK_EQ(pointsFor(p, "a"), 100);
+  CHECK_EQ(pointsFor(p, "c"), 100);
+  CHECK_EQ(pointsFor(p, "imp"), 0);
+  CHECK_EQ(p.size(), std::size_t(4));
 }
 
 // ================================================================ in a Room
@@ -147,6 +158,13 @@ struct MysteryGame : Setup {
   }
 
   void toVote() { room.next(room.hostId(), T0); }  // discuss -> vote
+
+  // discuss -> vote -> everyone else votes the impostor out -> final guess
+  void catchImpostor() {
+    toVote();
+    for (const std::string& id : innocents()) room.castVote(id, impostor, T0);
+    room.castVote(impostor, std::nullopt, T0);
+  }
 };
 
 int scoreOf(const Room& room, const std::string& id) { return room.findPlayer(id)->score; }
@@ -237,10 +255,21 @@ TEST(vote_broadcasts_submitted_ids_only) {
 
 TEST(vote_ends_when_all_connected_voted) {
   MysteryGame g(4);
-  g.toVote();
-  for (const JoinResult& p : g.players) g.room.castVote(p.playerId, std::nullopt, T0);
+  g.catchImpostor();  // last vote cast -> vote over; caught -> final guess
   CHECK_EQ(g.room.phase(), Phase::MysteryGuess);
   CHECK(g.room.deadlineMs() == std::optional<std::int64_t>(T0 + 30'000));
+}
+
+TEST(escaped_vote_goes_straight_to_reveal) {
+  MysteryGame g(4);
+  g.toVote();
+  g.room.takeOutbox();
+  for (const JoinResult& p : g.players) g.room.castVote(p.playerId, std::nullopt, T0);
+  CHECK_EQ(g.room.phase(), Phase::MysteryReveal);  // no guess when escaped
+  std::vector<Outgoing> out = g.room.takeOutbox();
+  CHECK_EQ(eventsOf<VoteResultEvent>(out).size(), std::size_t(1));
+  CHECK_EQ(eventsOf<RoundResultEvent>(out).size(), std::size_t(1));
+  CHECK_EQ(g.room.guessWord(g.impostor, g.mainWord, T0), std::string("wrong phase"));
 }
 
 // rules.md: the vote waits up to 20 s for someone who just left, then stops.
@@ -256,7 +285,7 @@ TEST(vote_stops_waiting_for_disconnected_player_after_grace) {
   g.room.tick(T0 + 19'999);
   CHECK_EQ(g.room.phase(), Phase::MysteryVote);
   g.room.tick(T0 + 20'000);
-  CHECK_EQ(g.room.phase(), Phase::MysteryGuess);
+  CHECK_EQ(g.room.phase(), Phase::MysteryReveal);  // vote over (all Skip: escaped)
 }
 
 TEST(last_non_voter_disconnecting_ends_vote_after_grace) {
@@ -271,7 +300,7 @@ TEST(last_non_voter_disconnecting_ends_vote_after_grace) {
   g.room.tick(T0 + 19'999);
   CHECK_EQ(g.room.phase(), Phase::MysteryVote);  // waits: no hint who left
   g.room.tick(T0 + 20'000);
-  CHECK_EQ(g.room.phase(), Phase::MysteryGuess);
+  CHECK_EQ(g.room.phase(), Phase::MysteryReveal);  // vote over (all Skip: escaped)
 }
 
 TEST(vote_does_not_wait_for_long_gone_player) {
@@ -284,7 +313,7 @@ TEST(vote_does_not_wait_for_long_gone_player) {
   for (const JoinResult& p : g.players) {
     if (p.playerId != innocents[0]) g.room.castVote(p.playerId, std::nullopt, later);
   }
-  CHECK_EQ(g.room.phase(), Phase::MysteryGuess);
+  CHECK_EQ(g.room.phase(), Phase::MysteryReveal);  // vote over (all Skip: escaped)
 }
 
 TEST(player_back_within_grace_can_vote) {
@@ -322,8 +351,10 @@ TEST(vote_result_is_sent_to_everyone_with_all_votes) {
 
 TEST(guess_validation) {
   MysteryGame g(4);
-  CHECK_EQ(g.room.guessWord(g.impostor, "x", T0), std::string("wrong phase"));
-  nextUntil(g, Phase::MysteryGuess);
+  g.toVote();
+  CHECK_EQ(g.room.guessWord(g.impostor, "x", T0), std::string("wrong phase"));  // not while voting
+  for (const std::string& id : g.innocents()) g.room.castVote(id, g.impostor, T0);
+  g.room.castVote(g.impostor, std::nullopt, T0);
   CHECK_EQ(g.room.guessWord(g.innocents()[0], "x", T0), std::string("not the impostor"));
   CHECK_EQ(g.room.guessWord(g.impostor, "   ", T0), std::string("invalid guess"));
   CHECK_EQ(g.room.guessWord(g.impostor, std::string(31, 'x'), T0), std::string("invalid guess"));
@@ -334,7 +365,7 @@ TEST(guess_validation) {
 
 TEST(guess_ends_phase_without_naming_impostor_first) {
   MysteryGame g(4);
-  nextUntil(g, Phase::MysteryGuess);
+  g.catchImpostor();
   g.room.takeOutbox();
   g.room.guessWord(g.impostor, g.mainWord, T0);
   CHECK_EQ(g.room.phase(), Phase::MysteryReveal);
@@ -344,7 +375,7 @@ TEST(guess_ends_phase_without_naming_impostor_first) {
 
 // ---------------------------------------------------------------- scoring
 
-TEST(caught_then_correct_guess_scores) {
+TEST(caught_then_hail_mary_right_scores) {
   MysteryGame g(4);
   g.toVote();
   for (const std::string& id : g.innocents()) g.room.castVote(id, g.impostor, T0);
@@ -353,7 +384,7 @@ TEST(caught_then_correct_guess_scores) {
   g.room.guessWord(g.impostor, "  " + g.mainWord + " ", T0);
 
   for (const std::string& id : g.innocents()) CHECK_EQ(scoreOf(g.room, id), 100);
-  CHECK_EQ(scoreOf(g.room, g.impostor), 150);
+  CHECK_EQ(scoreOf(g.room, g.impostor), 100);
 
   std::vector<Outgoing> out = g.room.takeOutbox();
   std::vector<RoundResultEvent> results = eventsOf<RoundResultEvent>(out);
@@ -369,7 +400,7 @@ TEST(caught_then_correct_guess_scores) {
   CHECK(!states.empty());
   if (!states.empty()) {
     for (const PublicPlayer& p : states.back().players) {
-      CHECK_EQ(p.score, p.id == g.impostor ? 150 : 100);
+      CHECK_EQ(p.score, 100);  // impostor +100 hail mary, everyone else +100 catch
     }
   }
 }
@@ -384,13 +415,12 @@ TEST(caught_wrong_guess_scores) {
   CHECK_EQ(scoreOf(g.room, g.impostor), 0);
 }
 
-TEST(skip_wins_impostor_escapes_and_guesses) {
+TEST(skip_wins_impostor_escapes) {
   MysteryGame g(4);
   g.toVote();
   for (const JoinResult& p : g.players) g.room.castVote(p.playerId, std::nullopt, T0);
-  g.room.guessWord(g.impostor, g.mainWord, T0);
   for (const std::string& id : g.innocents()) CHECK_EQ(scoreOf(g.room, id), 0);
-  CHECK_EQ(scoreOf(g.room, g.impostor), 250);
+  CHECK_EQ(scoreOf(g.room, g.impostor), 200);
 }
 
 TEST(innocent_accused_impostor_escapes) {
@@ -401,7 +431,7 @@ TEST(innocent_accused_impostor_escapes) {
   g.room.castVote(innocents[1], innocents[0], T0);
   g.room.castVote(innocents[2], innocents[0], T0);
   g.room.castVote(innocents[0], g.impostor, T0);
-  g.room.next(g.host(), T0);  // guess phase ends without a guess
+  CHECK_EQ(g.room.phase(), Phase::MysteryReveal);  // escaped: no guess
   CHECK_EQ(scoreOf(g.room, g.impostor), 200);
   CHECK_EQ(scoreOf(g.room, innocents[1]), 0);
 }
@@ -411,10 +441,7 @@ TEST(no_votes_by_deadline_impostor_escapes) {
   std::int64_t t = T0 + 100'000;
   g.room.tick(t);  // discuss over
   t += 45'000;
-  g.room.tick(t);  // vote over, nobody voted
-  CHECK_EQ(g.room.phase(), Phase::MysteryGuess);
-  t += 30'000;
-  g.room.tick(t);  // guess over, no guess
+  g.room.tick(t);  // vote over, nobody voted: escaped, straight to reveal
   CHECK_EQ(g.room.phase(), Phase::MysteryReveal);
   CHECK_EQ(scoreOf(g.room, g.impostor), 200);
 }
@@ -564,12 +591,61 @@ TEST(void_last_mystery_round_replays_before_wyr) {
 
 TEST(impostor_leaves_during_guess_counts_as_no_guess) {
   MysteryGame g(4);
-  g.toVote();
-  for (const JoinResult& p : g.players) g.room.castVote(p.playerId, std::nullopt, T0);
+  g.catchImpostor();
   CHECK_EQ(g.room.phase(), Phase::MysteryGuess);
   g.room.disconnect(g.impostor, T0);
   CHECK_EQ(g.room.phase(), Phase::MysteryReveal);
-  CHECK_EQ(scoreOf(g.room, g.impostor), 200);  // vote result still applies
+  CHECK_EQ(scoreOf(g.room, g.impostor), 0);  // caught, no guess
+  for (const std::string& id : g.innocents()) CHECK_EQ(scoreOf(g.room, id), 100);  // catch still pays
+}
+
+// ---------------------------------------------------------------- steal
+
+TEST(steal_right_ends_round_and_pays_300) {
+  MysteryGame g(4);
+  std::int64_t t = T0 + 30'000;  // mid-discussion
+  CHECK_EQ(g.room.guessWord(g.impostor, " " + g.mainWord + " ", t), std::string(""));
+  CHECK_EQ(g.room.phase(), Phase::MysteryReveal);  // immediately
+  CHECK_EQ(scoreOf(g.room, g.impostor), 300);
+  for (const std::string& id : g.innocents()) CHECK_EQ(scoreOf(g.room, id), 0);
+
+  std::vector<Outgoing> out = g.room.takeOutbox();
+  CHECK(eventsOf<VoteResultEvent>(out).empty());  // there was no vote
+  CHECK(eventsOf<SubmittedEvent>(out).empty());   // never names the guesser early
+  std::vector<RoundResultEvent> results = eventsOf<RoundResultEvent>(out);
+  CHECK_EQ(results.size(), std::size_t(1));
+  if (results.empty()) return;
+  CHECK(results[0].earlyGuess);
+  CHECK(results[0].guessCorrect == std::optional<bool>(true));
+  CHECK(!results[0].voided);
+}
+
+TEST(steal_wrong_outs_impostor) {
+  MysteryGame g(4);
+  CHECK_EQ(g.room.guessWord(g.impostor, g.impostorWord, T0), std::string(""));  // their own word: wrong
+  CHECK_EQ(g.room.phase(), Phase::MysteryReveal);
+  CHECK_EQ(scoreOf(g.room, g.impostor), 0);
+  for (const std::string& id : g.innocents()) CHECK_EQ(scoreOf(g.room, id), 100);
+  std::vector<RoundResultEvent> results = eventsOf<RoundResultEvent>(g.room.takeOutbox());
+  CHECK(!results.empty() && results[0].earlyGuess && results[0].guessCorrect == std::optional<bool>(false));
+}
+
+TEST(only_impostor_can_steal) {
+  MysteryGame g(4);
+  CHECK_EQ(g.room.guessWord(g.innocents()[0], g.mainWord, T0), std::string("not the impostor"));
+  CHECK_EQ(g.room.phase(), Phase::MysteryDiscuss);
+}
+
+TEST(next_round_starts_without_a_guess) {
+  MysteryGame g(4);
+  g.room.guessWord(g.impostor, g.mainWord, T0);  // steal in round 1
+  g.room.next(g.room.hostId(), T0);              // round 2
+  g.readWords(g.room.takeOutbox());
+  CHECK_EQ(g.room.round(), 2);
+  // A fresh round: the new impostor can steal again, and a catch still
+  // leads to a final guess.
+  g.catchImpostor();
+  CHECK_EQ(g.room.phase(), Phase::MysteryGuess);
 }
 
 // ---------------------------------------------------------------- rejoin

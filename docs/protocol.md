@@ -23,9 +23,9 @@ milliseconds.
 | Phase             | Game    | Deadline | Ends when                                                              |
 |-------------------|---------|----------|------------------------------------------------------------------------|
 | `lobby`           | none    | none     | host sends `START_MATCH`                                               |
-| `mystery_discuss` | mystery | 100 s    | deadline, host `NEXT`, or round void                                   |
-| `mystery_vote`    | mystery | 45 s     | all due round players voted (see below), deadline, host `NEXT`, or round void |
-| `mystery_guess`   | mystery | 30 s     | impostor guessed, impostor disconnected, deadline, or host `NEXT`      |
+| `mystery_discuss` | mystery | 100 s    | deadline, host `NEXT`, impostor's steal guess (→ `mystery_reveal`), or round void |
+| `mystery_vote`    | mystery | 45 s     | all due round players voted (see below), deadline, host `NEXT`, or round void. Next is `mystery_guess` only if the impostor was caught, otherwise `mystery_reveal` |
+| `mystery_guess`   | mystery | 30 s     | (only after a catch) impostor guessed, impostor disconnected, deadline, or host `NEXT` |
 | `mystery_reveal`  | mystery | none     | host `NEXT`                                                            |
 | `wyr_choose`      | wyr     | 30 s     | all connected players submitted, deadline, or host `NEXT`              |
 | `wyr_reveal`      | wyr     | none     | host `NEXT`                                                            |
@@ -50,7 +50,7 @@ void reveal replays the **same** `round` number with new words and a new imposto
 | `WATCH_ROOM`    | `code`                     | Sender not in a room. Room exists. Any phase. Makes this socket a display (see Display), not a player.        |
 | `START_MATCH`   | `{}`                       | `lobby`, host only, 4+ connected players (3+ in test mode).                                                  |
 | `CAST_VOTE`     | `targetId` (string or `null`) | `mystery_vote`, sender is in the round, has not voted. `null` means Skip. A string must be a player in the round who is not the sender. |
-| `GUESS_WORD`    | `word`                     | `mystery_guess`, sender is the impostor, has not guessed. Word is 1–30 characters after trimming.            |
+| `GUESS_WORD`    | `word`                     | `mystery_discuss` (a steal) or `mystery_guess` (final guess), sender is the impostor, has not guessed this round. Word is 1–30 characters after trimming. No `SUBMITTED` is sent for it (it would name the impostor). |
 | `SUBMIT_CHOICE` | `choice`, `prediction` (each `"A"` or `"B"`) | `wyr_choose`, has not submitted.                                                         |
 | `NEXT`          | `{}`                       | Host only. Any phase except `lobby` and `paused`.                                                            |
 | `END_MATCH`     | `{}`                       | Host only. Any phase except `lobby` and `match_over`. Goes to `match_over`.                                  |
@@ -77,8 +77,8 @@ its result message.
 | `PHASE`         | `game`, `phase`, `round` (1-based), `deadline` (ms timestamp, or `null`) | Everyone. |
 | `YOUR_WORD`     | `word`, `isImpostor` | **That player only.** At round start, and again on `REJOIN` during a running round. |
 | `SUBMITTED`     | `playerIds`: ids who have acted in the current phase | Everyone, after each accepted vote/guess/choice. Ids only, never content. |
-| `VOTE_RESULT`   | `votes`: [`{voterId, targetId}`] (`targetId` `null` = Skip), `accusedId` (`null` if nobody caught), `caught` (bool) | Everyone, at the end of `mystery_vote`. Reveals the impostor only when `caught` is true. |
-| `ROUND_RESULT`  | `impostorId`, `mainWord`, `impostorWord`, `guess` (string or `null`), `guessCorrect` (bool or `null`), `void` (bool), `points`: [`{playerId, delta}`] | Everyone, entering `mystery_reveal`. |
+| `VOTE_RESULT`   | `votes`: [`{voterId, targetId}`] (`targetId` `null` = Skip), `accusedId` (`null` if nobody caught), `caught` (bool) | Everyone, at the end of `mystery_vote` (not sent when a steal ended the round). Reveals the impostor only when `caught` is true. |
+| `ROUND_RESULT`  | `impostorId`, `mainWord`, `impostorWord`, `guess` (string or `null`), `guessCorrect` (bool or `null`), `void` (bool), `earlyGuess` (bool: the guess was a steal during discussion), `points`: [`{playerId, delta}`] | Everyone, entering `mystery_reveal`. |
 | `WYR_PROMPT`    | `optionA`, `optionB` | Everyone, at the start of `wyr_choose`. |
 | `WYR_RESULT`    | `choices`: [`{playerId, choice, prediction}`], `countA`, `countB`, `majority` (`"A"`, `"B"`, or `null` on an even split), `points`: [`{playerId, delta}`] | Everyone, entering `wyr_reveal`. |
 | `MATCH_OVER`    | `winnerIds` (list; ties are co-champions), `leaderboard`: [`{playerId, name, score}`] sorted high to low | Everyone. |

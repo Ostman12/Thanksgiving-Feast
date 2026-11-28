@@ -52,6 +52,14 @@
         <span id="word-text" class="word-text"></span>
       </button>
       <p class="muted center small-note">Tap to show / hide</p>
+      <!-- Impostor only, discussion only, and only while the card is open. -->
+      <div id="steal-box" class="steal-box" hidden>
+        <p class="steal-title">🎯 Know their word? Steal the round!</p>
+        <p class="small-note">Right: <b>+300</b> and the round ends now.
+          Wrong: you're outed (counts as caught).</p>
+        <input id="steal-input" maxlength="30" autocomplete="off" enterkeyhint="send" class="wide">
+        <button id="steal-btn" class="btn primary">Steal the round</button>
+      </div>
     </div>
 
     <section data-screen="mystery_discuss" hidden>
@@ -68,8 +76,8 @@
     <section data-screen="mystery_guess" hidden>
       <div id="guess-result"></div>
       <div id="guess-form" hidden>
-        <h2>🎯 Guess the word</h2>
-        <p>What is everyone else's word?</p>
+        <h2>🙏 Hail mary</h2>
+        <p>You were caught! One last guess at everyone else's word: right is <b>+100</b>.</p>
         <input id="guess-input" maxlength="30" autocomplete="off" enterkeyhint="send" class="wide">
         <button id="guess-btn" class="btn primary">Send guess</button>
       </div>

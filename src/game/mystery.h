@@ -9,10 +9,11 @@
 
 namespace feast {
 
-constexpr int kCaughtTeamPoints = 100;    // each non-impostor when caught
-constexpr int kCaughtGuessPoints = 150;   // impostor: caught, then guessed right
-constexpr int kEscapePoints = 200;        // impostor escapes
-constexpr int kEscapeGuessBonus = 50;     // impostor escapes and guessed right
+// rules.md, Mystery scoring.
+constexpr int kStealPoints = 300;        // impostor: right guess during discussion
+constexpr int kEscapePoints = 200;       // impostor escapes the vote
+constexpr int kHailMaryPoints = 100;     // impostor: caught, then final guess right
+constexpr int kCaughtTeamPoints = 100;   // each non-impostor when caught (or outed by a wrong steal)
 constexpr std::size_t kMaxGuessLength = 30;
 
 struct VoteTally {
@@ -29,8 +30,11 @@ bool isCorrectGuess(const std::string& guess, const std::string& mainWord);
 
 // Points for a finished (not void) round. One entry per round player, in the
 // order given, including 0 deltas.
+//   earlyGuess:   the impostor guessed during discussion (a steal attempt)
+//   caught:       the vote caught the impostor (ignored for a steal attempt)
+//   guessCorrect: the impostor's guess (steal or final) was right
 std::vector<PointsDelta> mysteryPoints(const std::vector<std::string>& roundPlayerIds,
-                                       const std::string& impostorId, bool caught,
-                                       bool guessCorrect);
+                                       const std::string& impostorId, bool earlyGuess,
+                                       bool caught, bool guessCorrect);
 
 }  // namespace feast

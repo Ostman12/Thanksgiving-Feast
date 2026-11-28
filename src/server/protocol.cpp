@@ -87,6 +87,7 @@ json toJson(const RoundResultEvent& e) {
                                   {"guess", orNull(e.guess)},
                                   {"guessCorrect", orNull(e.guessCorrect)},
                                   {"void", e.voided},
+                                  {"earlyGuess", e.earlyGuess},
                                   {"points", pointsToJson(e.points)}});
 }
 

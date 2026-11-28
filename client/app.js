@@ -43,6 +43,7 @@ const state = {
   pending: null,      // 'vote' | 'guess' | 'choice' | null
   matchOver: null,
   endArmed: false,    // first tap on "End match" arms it, second sends
+  stealArmed: false,  // same two-tap lock-in for the impostor's steal
 };
 
 function resetMystery() {
@@ -107,6 +108,7 @@ function handle({ type, payload }) {
     case 'PHASE':
       state.phase = payload;
       state.endArmed = false;
+      state.stealArmed = false;
       state.pending = null;  // a new phase: nothing of mine is in flight any more
       if (payload.phase === 'mystery_discuss') resetMystery();
       if (payload.phase === 'lobby') {
@@ -247,6 +249,15 @@ function renderWordCard(screen) {
   $('word-text').textContent = shown ? state.word.word : '••••••';
   $('word-btn').classList.toggle('blurred', !shown);
   $('word-btn').classList.toggle('impostor', shown && state.word.isImpostor);
+
+  // Steal: impostor, discussion, card open. Two taps to lock in, like End match.
+  const canSteal = shown && state.word.isImpostor && screen === 'mystery_discuss';
+  $('steal-box').hidden = !canSteal;
+  const sending = state.pending === 'steal';
+  $('steal-btn').disabled = sending;
+  $('steal-btn').textContent = sending ? 'Sending…'
+      : state.stealArmed ? 'Tap again to lock it in' : 'Steal the round';
+  $('steal-btn').classList.toggle('armed', state.stealArmed && !sending);
 }
 
 const NEXT_LABELS = {
@@ -341,7 +352,7 @@ function renderGuess() {
   $('guess-form').hidden = !impostor;
   $('guess-btn').disabled = sending;
   $('guess-btn').textContent = sending ? 'Sending…' : 'Send guess';
-  fill('guess-wait', impostor ? null : el('p', { class: 'center' }, '🎯 The impostor is guessing your word…'));
+  fill('guess-wait', impostor ? null : el('p', { class: 'center' }, '🙏 Caught! The impostor gets one last guess at your word…'));
 }
 
 function renderMysteryReveal() {
@@ -358,19 +369,26 @@ function renderMysteryReveal() {
     return;
   }
   const delta = myDelta(r.points);
-  const votes = state.voteResult ? state.voteResult.votes : [];
+  const votes = r.earlyGuess || !state.voteResult ? [] : state.voteResult.votes;
   fill('mreveal-body',
     el('h2', {}, `The impostor was ${nameOf(r.impostorId)} 🕵️`),
-    voteSummary(state.voteResult),
+    r.earlyGuess ? stealLine(r) : voteSummary(state.voteResult),
     wordsLine(r),
-    r.guess === null
-      ? el('p', {}, 'No guess.')
-      : el('p', {}, `Guess: “${r.guess}” `, r.guessCorrect ? '✅ correct!' : '❌ wrong'),
+    r.earlyGuess ? null
+      : r.guess === null ? el('p', {}, 'No guess.')
+      : el('p', {}, `Hail mary: “${r.guess}” `, r.guessCorrect ? '✅ correct!' : '❌ wrong'),
     el('p', { class: 'big center' }, delta ? `You earned ${Feast.signed(delta)} 🎉` : 'No points for you this round.'),
-    el('h3', {}, 'Votes'),
-    el('ul', { class: 'plain' }, votes.map((v) =>
-      el('li', {}, `${nameOf(v.voterId)} → ${v.targetId ? nameOf(v.targetId) : 'Skip'}`))),
+    votes.length ? el('h3', {}, 'Votes') : null,
+    votes.length ? el('ul', { class: 'plain' }, votes.map((v) =>
+      el('li', {}, `${nameOf(v.voterId)} → ${v.targetId ? nameOf(v.targetId) : 'Skip'}`))) : null,
     pointsList(r.points));
+}
+
+// The impostor guessed during discussion.
+function stealLine(r) {
+  return r.guessCorrect
+    ? el('p', { class: 'big center' }, `🎯 ${nameOf(r.impostorId)} guessed “${r.guess}” and stole the round!`)
+    : el('p', { class: 'big center' }, `😬 ${nameOf(r.impostorId)} guessed “${r.guess}”, wrong, and outed themselves!`);
 }
 
 function wordsLine(r) {
@@ -496,6 +514,26 @@ function sendGuess() {
   }
 }
 $('guess-btn').addEventListener('click', sendGuess);
+
+// Steal during discussion: first tap arms, second (within 3 s) sends.
+let stealTimer = null;
+$('steal-btn').addEventListener('click', () => {
+  const word = $('steal-input').value.trim();
+  if (!word) {
+    Feast.toast('Type your guess first');
+    return;
+  }
+  if (!state.stealArmed) {
+    state.stealArmed = true;
+    clearTimeout(stealTimer);
+    stealTimer = setTimeout(() => { state.stealArmed = false; render(); }, 3000);
+  } else if (socket.send('GUESS_WORD', { word })) {
+    state.stealArmed = false;
+    state.pending = 'steal';
+    $('steal-input').value = '';
+  }
+  render();
+});
 $('guess-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendGuess(); });
 
 for (const button of document.querySelectorAll('[data-pick]')) {

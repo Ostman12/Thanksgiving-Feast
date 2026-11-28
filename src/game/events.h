@@ -110,6 +110,7 @@ struct RoundResultEvent {
   std::optional<std::string> guess;
   std::optional<bool> guessCorrect;  // nullopt when there was no guess
   bool voided = false;               // "void" in JSON
+  bool earlyGuess = false;           // the guess was a steal during discussion
   std::vector<PointsDelta> points;
 };
 

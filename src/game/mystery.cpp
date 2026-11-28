@@ -37,21 +37,26 @@ bool isCorrectGuess(const std::string& guess, const std::string& mainWord) {
 }
 
 std::vector<PointsDelta> mysteryPoints(const std::vector<std::string>& roundPlayerIds,
-                                       const std::string& impostorId, bool caught,
-                                       bool guessCorrect) {
+                                       const std::string& impostorId, bool earlyGuess,
+                                       bool caught, bool guessCorrect) {
+  // A wrong steal outs the impostor: it scores exactly like being caught with
+  // no final guess. A right steal is its own outcome.
+  bool stole = earlyGuess && guessCorrect;
+  bool impostorCaught = earlyGuess ? !guessCorrect : caught;
+
+  int impostorDelta = 0;
+  if (stole) {
+    impostorDelta = kStealPoints;
+  } else if (!impostorCaught) {
+    impostorDelta = kEscapePoints;
+  } else if (!earlyGuess && guessCorrect) {
+    impostorDelta = kHailMaryPoints;
+  }
+  int othersDelta = impostorCaught ? kCaughtTeamPoints : 0;
+
   std::vector<PointsDelta> points;
   for (const std::string& id : roundPlayerIds) {
-    int delta = 0;
-    if (id == impostorId) {
-      if (caught) {
-        delta = guessCorrect ? kCaughtGuessPoints : 0;
-      } else {
-        delta = kEscapePoints + (guessCorrect ? kEscapeGuessBonus : 0);
-      }
-    } else if (caught) {
-      delta = kCaughtTeamPoints;
-    }
-    points.push_back({id, delta});
+    points.push_back({id, id == impostorId ? impostorDelta : othersDelta});
   }
   return points;
 }

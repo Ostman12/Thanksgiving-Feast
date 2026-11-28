@@ -62,8 +62,13 @@ Each round:
    - **After a rejoin**, the word comes back too (the server resends `YOUR_WORD`), blurred
      again.
 3. **Discuss phase (clues + discussion).** Everything happens in person. Players take turns
-   saying a clue about their word out loud, then discuss. Nothing is submitted in-game.
-   Ends at the 100 s deadline, or when the host taps Next.
+   saying a clue about their word out loud, then discuss. Ends at the 100 s deadline, or
+   when the host taps Next.
+   - **Steal.** At any point during discussion, the impostor may guess the main word
+     (once). The guess box is inside their word card, so it only shows while they have
+     the card open. The round ends immediately and goes to the reveal:
+     - **Right:** the impostor steals the round.
+     - **Wrong:** the impostor has outed themselves and counts as caught. No final guess.
 4. **Vote phase.** Each player secretly votes once, for either another player in the round
    or **Skip**. You cannot vote for yourself. Voting for a disconnected player is allowed.
 5. **Vote result.** Votes are tallied with Skip counted like a candidate.
@@ -71,20 +76,23 @@ Each round:
      most, or zero votes cast:** nobody is caught. The impostor escapes.
    - **One player has the most votes and is the impostor:** the impostor is caught.
    - **One player has the most votes and is not the impostor:** the impostor escapes.
-6. **Guess phase.** Immediately after the vote result, the impostor gets one guess at the
-   main word, **whether caught or not**. Everyone else waits. A guess is correct if it
+   - **Escaped:** straight to the reveal. No guess.
+6. **Final guess (hail mary), only if caught.** The caught impostor gets one last guess at
+   the main word. Everyone else waits. A guess (here or in a steal) is correct if it
    matches the main word after trimming and ignoring case.
-7. **Reveal.** Everyone sees all votes, who was accused, who the impostor was, both words,
-   the impostor's guess (if any), whether it was correct, and points earned.
+7. **Reveal.** Everyone sees all votes (if there was a vote), who was accused, who the
+   impostor was, both words, the impostor's guess (if any) and whether it was a steal,
+   whether it was correct, and points earned.
 
 ### Mystery scoring
 
-| Outcome | Points |
-|---|---|
-| Impostor caught | +100 to every non-impostor in the round |
-| Impostor caught, then guesses the main word | +150 to the impostor |
-| Impostor escapes (including all ties and Skip wins) | +200 to the impostor |
-| Impostor escapes, then guesses the main word | +50 more to the impostor (250 total) |
+| Outcome | Impostor | Each non-impostor in the round |
+|---|---|---|
+| Steal: right guess during discussion | +300 | 0 |
+| Wrong guess during discussion (outed, counts as caught) | 0 | +100 |
+| Escapes the vote (including all ties and Skip wins) | +200 | 0 |
+| Caught, then final guess right | +100 | +100 |
+| Caught, final guess wrong or none | 0 | +100 |
 
 "In the round" means the players dealt a word at setup, connected or not.
 
