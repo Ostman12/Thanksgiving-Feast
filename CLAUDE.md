@@ -1,6 +1,7 @@
 # Feast Mode
 
-Thanksgiving party game for 4-10 players (Mystery, then Would You Rather Extreme). C++ WebSocket server (authoritative)
+Thanksgiving party game for 4-10 players (Mystery, then Would You Rather Extreme, then
+Around the Table, which `--no-around-the-table` turns off). C++ WebSocket server (authoritative)
 plus a plain HTML/JS client served by the same server.
 Protocol: docs/protocol.md. Rules: docs/rules.md. Design decisions: docs/design.md.
 

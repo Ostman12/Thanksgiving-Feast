@@ -46,8 +46,28 @@ route-plus-callback code is short enough to explain line by line.
 | Round number, big countdown | Small countdown |
 | "5 of 7 voted" progress | Vote buttons, secret word (blurred), guess box, A/B buttons |
 | Would You Rather prompt, large | A/B buttons |
-| Reveals: votes, impostor, words, points | "You earned +100" |
+| Around the Table: "Alex is picking a question…" | Subject: the question privately, with Continue and Skip (2 per turn). Others: "Alex is picking a question…" |
+| Around the Table: subject's name, chosen question, A–D options, "4 of 6 locked in" | Subject: "Pick your real answer." Others: "What would Alex pick?" A–D buttons plus Pass |
+| Around the Table reveal: answer cards flip over one by one, then the subject's answer | "You called it! +100" or "Alex surprised you" |
+| Awards, Mario Party style: one award at a time, big title, winners, "+75", scores ticking up | "🔮 You're the Mind Reader! +75" or who won it |
+| Final leaderboard and champion, with every award listed | Your score and your awards |
+| Reveals: votes, impostor, words, points; the subject's answer and everyone's predictions | "You earned +100" |
 | Leaderboard, champion 🏆 | Your score |
+
+## Game 3 safety flag
+
+Around the Table was added on game day, after the other two games were tested on phones.
+To keep the tested match one flag away, it sits behind `--no-around-the-table`:
+
+- **Off switch only.** Game 3 is on by default; the flag removes it from the match before
+  it starts. Nothing else about Mystery or Would You Rather changes either way.
+- **Built as its own pieces**, like the other games: pure scoring in `src/game/att.*`, Room
+  wiring in `src/game/room_att.cpp`, its own tests. The phase engine only learns "after the
+  last Would You Rather prompt, go to Around the Table if it's enabled".
+- **Fallback on the night:** stop the server (Ctrl+C) and start it again with
+  `--no-around-the-table`. Rooms are not saved across restarts, so the old room and its
+  scores are gone: phones land back on the join screen, the host creates a new room, and
+  everyone joins it. Best done between matches, not in the middle of one.
 
 ## Client: smooth without reloads
 

@@ -29,7 +29,11 @@ milliseconds.
 | `mystery_reveal`  | mystery | none     | host `NEXT`                                                            |
 | `wyr_choose`      | wyr     | 30 s     | all connected players submitted, deadline, or host `NEXT`              |
 | `wyr_reveal`      | wyr     | none     | host `NEXT`                                                            |
-| `paused`          | either  | none     | 3+ players (2+ in test mode) connected again (resumes), or host `END_MATCH` |
+| `att_choose`      | att     | 20 s     | subject sends `ATT_CONTINUE`, deadline, or host `NEXT` (all use the question on the subject's screen) |
+| `att_pick`        | att     | 45 s     | every connected player picked or passed **and** the subject has answered, deadline, or host `NEXT` |
+| `att_reveal`      | att     | none     | host `NEXT`: the next subject's `att_choose`, else `awards` |
+| `awards`          | none    | none     | host `NEXT` reveals the next award; after the last one, `match_over`. Skipped entirely if no award has a winner |
+| `paused`          | any     | none     | 3+ players (2+ in test mode) connected again (resumes), or host `END_MATCH` |
 | `match_over`      | none    | none     | host `NEXT` returns everyone to `lobby` with scores reset              |
 
 In `mystery_vote`, a round player is due a vote if they are connected or disconnected less
@@ -39,6 +43,12 @@ If the impostor disconnects before `mystery_guess`, they have 20 s to `REJOIN`. 
 don't, or `mystery_vote` ends while they are still away, the round is void
 (`ROUND_RESULT.void` is `true`) and skips straight to `mystery_reveal`. Host `NEXT` from a
 void reveal replays the **same** `round` number with new words and a new impostor.
+
+Game `att` is Around the Table (rules.md, Game 3). Its `PHASE.round` is the round number,
+one round per player. In `awards`, `PHASE.game` is `null` and `PHASE.round` is the award
+being shown (1-based); `END_MATCH` skips `awards` and goes straight to `match_over`. When the server runs with `--no-around-the-table`, the `att` phases
+never happen and `awards` (or `match_over` if there are none) follows the last
+`wyr_reveal`.
 
 ## Client → server
 
@@ -52,6 +62,9 @@ void reveal replays the **same** `round` number with new words and a new imposto
 | `CAST_VOTE`     | `targetId` (string or `null`) | `mystery_vote`, sender is in the round, has not voted. `null` means Skip. A string must be a player in the round who is not the sender. |
 | `GUESS_WORD`    | `word`                     | `mystery_discuss` (a steal) or `mystery_guess` (final guess), sender is the impostor, has not guessed this round. Word is 1–30 characters after trimming. No `SUBMITTED` is sent for it (it would name the impostor). |
 | `SUBMIT_CHOICE` | `choice` (`"A"` or `"B"`) | `wyr_choose`, has not submitted. |
+| `ATT_PICK`      | `option` (`"A"`–`"D"`, or `null`) | `att_pick`, has not picked this round. From the subject: their real answer (`null` is `ERROR` `"invalid option"`). From anyone else: their prediction, or `null` to Pass. |
+| `ATT_SKIP`      | `{}`                       | `att_choose`, sender is the subject (`"not the subject"`), has a skip left (2 per turn, `"no skips left"`). Shows the subject another question. |
+| `ATT_CONTINUE`  | `{}`                       | `att_choose`, sender is the subject. Uses the question on their screen and starts `att_pick`. |
 | `NEXT`          | `{}`                       | Host only. Any phase except `lobby` and `paused`.                                                            |
 | `END_MATCH`     | `{}`                       | Host only. Any phase except `lobby` and `match_over`. Goes to `match_over`.                                  |
 
@@ -66,22 +79,29 @@ message other than `WATCH_ROOM` gets `ERROR` `"not a player"`.
 player socket and every display socket in the room. Nothing sent to the
 whole room may contain a word or the impostor's identity before the reveal (except a
 caught impostor in `VOTE_RESULT`), and no one's vote or Would You Rather choice before
-its result message.
+its result message. In Around the Table, no one's pick (the subject's answer or anyone's
+prediction) is sent before `ATT_RESULT`, the questions a subject skipped are never sent to
+anyone but the subject, and there is no host-only or private view of anyone's picks.
 
 | Type | Payload | Sent to |
 |---|---|---|
 | `JOINED`        | `playerId`, `token`, `code` | **The joining player only.** Reply to `CREATE_ROOM`, `JOIN_ROOM`, `REJOIN`. Client stores `code` and `token` in `localStorage`. |
 | `ROOM_STATE`    | `code`, `hostId`, `phase`, `testMode`, `players`: [`{id, name, score, connected}`] | Everyone in the room, on any change to players, host, phase, or scores. |
 | `ERROR`         | `reason` (human-readable string) | The sender only. |
-| `MATCH_STARTED` | `games`: `["mystery", "wyr"]`, `rounds`: `{mystery: 3, wyr: 3}` | Everyone. |
+| `MATCH_STARTED` | `games`: `["mystery", "wyr", "att"]`, `rounds`: `{mystery: 3, wyr: 3, att: N}` where N is the number of players when the match starts (without `"att"` / `att` under `--no-around-the-table`) | Everyone. |
 | `PHASE`         | `game`, `phase`, `round` (1-based), `deadline` (ms timestamp, or `null`) | Everyone. |
 | `YOUR_WORD`     | `word`, `isImpostor` | **That player only.** At round start, and again on `REJOIN` during a running round. |
-| `SUBMITTED`     | `playerIds`: ids who have acted in the current phase | Everyone, after each accepted vote/guess/choice. Ids only, never content. |
+| `SUBMITTED`     | `playerIds`: ids who have acted in the current phase | Everyone, after each accepted vote/guess/choice/pick. Ids only, never content. |
 | `VOTE_RESULT`   | `votes`: [`{voterId, targetId}`] (`targetId` `null` = Skip), `accusedId` (`null` if nobody caught), `caught` (bool) | Everyone, at the end of `mystery_vote` (not sent when a steal ended the round). Reveals the impostor only when `caught` is true. |
 | `ROUND_RESULT`  | `impostorId`, `mainWord`, `impostorWord`, `guess` (string or `null`), `guessCorrect` (bool or `null`), `void` (bool), `earlyGuess` (bool: the guess was a steal during discussion), `points`: [`{playerId, delta}`] | Everyone, entering `mystery_reveal`. |
 | `WYR_PROMPT`    | `optionA`, `optionB` | Everyone, at the start of `wyr_choose`. |
 | `WYR_RESULT`    | `choices`: [`{playerId, choice}`], `countA`, `countB`, `majority` (`"A"`, `"B"`, or `null` on an even split), `points`: [`{playerId, delta}`] | Everyone, entering `wyr_reveal`. |
-| `MATCH_OVER`    | `winnerIds` (list; ties are co-champions), `leaderboard`: [`{playerId, name, score}`] sorted high to low | Everyone. |
+| `ATT_SUBJECT`   | `subjectId`, `round`, `total` | Everyone, at the start of `att_choose`. |
+| `ATT_PREVIEW`   | `question`, `options`: [4 strings], `skipsLeft` (0–2) | **The subject only.** At the start of `att_choose` and after each `ATT_SKIP`. Others only see `PHASE` `att_choose` and the subject's id in `ATT_SUBJECT`. |
+| `ATT_QUESTION`  | `subjectId`, `question`, `options`: [4 strings, for A to D] | Everyone, at the start of `att_pick`: the question the subject chose. |
+| `ATT_RESULT`    | `subjectId`, `answer` (`"A"`–`"D"`, or `null` if the subject didn't answer), `predictions`: [`{playerId, option}`] (`option` `null` = passed; players who didn't pick are left out), `perfect` (bool: perfect-round bonus paid), `points`: [`{playerId, delta}`] | Everyone, entering `att_reveal`. |
+| `AWARD`         | `index` (1-based), `total`, `id`, `title`, `description`, `playerIds` (winners; ties share), `points` (75 each) | Everyone, on each step of `awards`. The winners' scores go up by `points` at the same time (`ROOM_STATE` follows). |
+| `MATCH_OVER`    | `winnerIds` (list; ties are co-champions), `leaderboard`: [`{playerId, name, score}`] sorted high to low, `awards`: [`{id, title, playerIds}`] (every award given this match, for the final screen; empty after End match) | Everyone. |
 
 Scores live in `ROOM_STATE.players[].score`; there is no separate `SCORES` message.
 
@@ -92,7 +112,9 @@ Scores live in `ROOM_STATE.players[].score`; there is no separate `SCORES` messa
    has a saved token. On `ERROR`, it clears the token and shows the join screen.
 3. The server answers `REJOIN` with `JOINED`, `ROOM_STATE`, the current `PHASE`, and any
    messages the player needs to rebuild the current screen (`YOUR_WORD`, `VOTE_RESULT`,
-   `WYR_PROMPT`, results), still respecting the secrecy rules above.
+   `WYR_PROMPT`, `ATT_SUBJECT`, `ATT_PREVIEW` (subject only), `ATT_QUESTION`, `SUBMITTED`,
+   `AWARD`, results), still respecting the secrecy
+   rules above. A player's own pick is not sent back to them before the reveal.
 4. If the player has an open socket already, the old socket is closed and replaced.
 
 This matters most on phones: iOS Safari and Chrome on Android drop WebSockets when the
@@ -104,7 +126,8 @@ A display is a watch-only screen, such as a laptop showing the game to the whole
 opens `/display`, enters the room code, and sends `WATCH_ROOM`.
 
 1. The server answers with `ROOM_STATE`, the current `PHASE`, and any room-wide messages
-   needed to rebuild the current screen (`VOTE_RESULT`, `WYR_PROMPT`, results). It never
+   needed to rebuild the current screen (`VOTE_RESULT`, `WYR_PROMPT`, `ATT_SUBJECT`,
+   `ATT_QUESTION`, `SUBMITTED`, `AWARD`, results). It never
    receives `JOINED`, `YOUR_WORD`, or anything else marked **bold** above.
 2. After that, it receives every message sent to "Everyone".
 3. A display is not a player. It has no id, no token, and no score, and it does not count
@@ -119,4 +142,4 @@ opens `/display`, enters the room code, and sends `WATCH_ROOM`.
 `"not in a room"`, `"room not found"`, `"room is full"`, `"name taken"`,
 `"match already started"`, `"not the host"`, `"not enough players"`, `"wrong phase"`,
 `"already submitted"`, `"cannot vote for yourself"`, `"not the impostor"`,
-`"not a player"`, `"invalid message"`.
+`"not a player"`, `"invalid option"`, `"not the subject"`, `"no skips left"`, `"invalid message"`.

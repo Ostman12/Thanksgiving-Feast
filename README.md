@@ -25,8 +25,12 @@ From the repo root (so `client/` is found):
 
 ```powershell
 .\build\Release\feast_server.exe --port 8080              # 4+ players to start
-.\build\Release\feast_server.exe --port 8080 --test-mode  # 3+ players to start
+.\build\Release\feast_server.exe --port 8080 --test-mode  # 2+ players to start
+.\build\Release\feast_server.exe --no-around-the-table    # leave Game 3 out of the match
 ```
+
+Flags combine, e.g. `--test-mode --no-around-the-table`. Restarting the server clears all
+rooms, so change flags between matches.
 
 Phones open `http://<laptop-ip>:8080/` (or the tunnel URL). The big screen opens
 `/display`. Windows may ask to allow the server through the firewall the first

@@ -23,14 +23,19 @@ this file disagree, the code is wrong (or this file gets updated first, on purpo
 1. **Lobby.** Players join with the room code. The host starts the match.
 2. **Mystery:** 3 rounds.
 3. **Would You Rather Extreme:** 3 prompts.
-4. **Final leaderboard.** The highest score is champion. Tied top scores are co-champions.
+4. **Around the Table:** one round per player (skipped when the server runs with
+   `--no-around-the-table`, see Game 3).
+5. **Awards.** Bonus awards from all the games, revealed one at a time, +75 each (see
+   Awards). They can change who wins.
+6. **Final leaderboard.** The highest score is champion. Tied top scores are co-champions.
 
-Scores start at 0 and carry across every round and both games.
+Scores start at 0 and carry across every round and every game.
 
 ## Phase advancement
 
-- Phases where players act (vote, guess, choose) end when **every connected player who is
-  still due an action has acted**, or when the deadline passes, whichever comes first.
+- Phases where players act (vote, guess, choose, pick) end when **every connected player
+  who is still due an action has acted**, or when the deadline passes, whichever comes
+  first.
 - **Vote phase only:** a player who disconnected less than 20 seconds ago still counts as
   due. Otherwise a vote stuck waiting on one missing player would show everyone who the
   impostor is (see Disconnects).
@@ -39,7 +44,8 @@ Scores start at 0 and carry across every round and both games.
 - The host can also tap **Next** during any phase to end it early (fallback if a timer
   misbehaves). Missing actions count as "did not act".
 
-Deadlines: discuss 100 s, vote 45 s, guess 30 s, choose 30 s.
+Deadlines: discuss 100 s, vote 45 s, guess 30 s, choose 30 s, Around the Table question
+choice 20 s, Around the Table pick 45 s.
 
 ## Game 1: Mystery (word impostor)
 
@@ -120,6 +126,108 @@ majority.
 
 Only players who submitted count toward the majority.
 
+## Game 3: Around the Table
+
+A prediction game for getting to know each other. Each round one player is the
+**subject**, and everyone else predicts how the subject will answer a question about
+themselves. The point is less the score than finding out things you didn't know and
+talking about them.
+
+Everyone knows how it works: the subject chooses what to answer, nobody has to answer
+anything they'd rather not, and nothing is shown to anyone (host included) before the
+reveal.
+
+Each round:
+
+1. **Subject.** The server picks a random connected player who hasn't been the subject yet
+   this match. Everyone sees who it is.
+2. **Question choice (20 s), subject only.** The subject privately sees a question from
+   `docs/around-the-table-questions.md` with its four options (A to D) and taps
+   **Continue** to use it, or **Skip** to see another one, up to **2 skips** per turn.
+   Everyone else sees "Alex is picking a question…". Skipped questions are never shown to
+   anyone else. If the 20 s run out (or the host taps Next), the question on screen is used.
+3. **Pick phase (45 s).** The chosen question and its options appear on every phone and
+   the big screen, with the subject's name, e.g. "Alex: You have a completely free
+   Saturday. What are you doing?" At the same time:
+   - the **subject** privately picks their real answer, and
+   - **every other player** privately picks what they think the subject chose, or taps
+     **Pass** (no prediction, no penalty).
+   Each player picks once and can't change it. Nobody sees anyone's pick, the subject's
+   included, until the reveal.
+4. **Reveal.** Everyone sees the subject's answer, every player's prediction (or pass), who
+   was right, and points. The subject can explain their pick out loud, especially if it
+   surprised everyone.
+5. **Next subject.** The host taps Next. The game continues until every player has been the
+   subject once.
+
+### Around the Table scoring
+
+Your design's 2-point / 3-point values, scaled to match the other games (×50):
+
+| Outcome | Points |
+|---|---|
+| You predicted the subject's answer | +100 |
+| Perfect round: at least 2 players predicted and **every** prediction was right | +150 more to each of them (+250 total) |
+| Wrong prediction, or Pass | 0 |
+| You are the subject | 0 (so there's no reason to answer anything but honestly) |
+| The subject didn't answer in time | Nobody scores this round; the reveal says so |
+
+### Rounds and turns
+
+- **One round per player** in the room when the match starts, so everyone gets a turn.
+- If the subject disconnects while choosing, the question on screen is used when the 20 s
+  run out.
+- A player who is **disconnected when the next subject is picked** is passed over for now
+  and picked in a later round if they're back. Players still away after everyone else has
+  had a turn are skipped, and the game ends.
+- The pick phase ends early only once **every connected player has picked or passed and
+  the subject has answered**. It never ends early without the subject's answer; only the
+  deadline or the host's Next does that.
+
+### Turning it off
+
+The server flag `--no-around-the-table` leaves Game 3 out of the match entirely: the match
+is Mystery, then Would You Rather, then the leaderboard, exactly as before Game 3 existed
+(and no Around the Table awards). Use it if anything about Game 3 misbehaves on the
+night.
+
+### Later (not for Saturday)
+
+From the design, saved for after game night because each needs new kinds of screens:
+
+- **The Group Knows You:** the subject writes a short answer, everyone writes a guess, and
+  the subject awards points to the closest guesses.
+- **"Who in the group…?" rounds:** everyone picks which player fits a description.
+- **Custom questions** added by the host.
+
+## Awards (end of match)
+
+Mario Party style: after the last game, before the final leaderboard, bonus awards are
+revealed **one at a time** on every screen. Each award is worth **+75** to each winner,
+added to their score as it's revealed, so the lead can change right at the end.
+
+| Game | Award | Goes to |
+|---|---|---|
+| Mystery | 🔎 **Detective** | Most votes for the actual impostor (in rounds you weren't the impostor) |
+| Mystery | 🕵️ **Master of Disguise** | Most rounds won as the impostor (escaped the vote or stole) |
+| Would You Rather | 🐑 **Crowd Pleaser** | Most picks on the majority side |
+| Would You Rather | 🐺 **Lone Wolf** | Most times as the only one on your side (3+ answering) |
+| Around the Table | 🔮 **Mind Reader** | Most correct predictions |
+| Around the Table | 🤝 **Closest Friend** | Best prediction accuracy (correct ÷ predictions made, at least 2 made) |
+| Around the Table | 🌀 **Plot Twist** | The subject whose answer the smallest share of predictors got right |
+| Around the Table | 📖 **Open Book** | The subject whose answer the largest share of predictors got right |
+
+- **Ties share the award**, and each winner gets the +75.
+- **Nobody qualifies, no award:** you need at least 1 of the thing counted (e.g. 1 vote
+  for the impostor). Plot Twist and Open Book count only subjects who answered and had at
+  least one prediction, and are left out if every such subject had the same share.
+- Awards are revealed in the order of the table. The host taps Next for each one; after the
+  last, the final leaderboard. If nobody qualifies for any award, it goes straight to the
+  leaderboard.
+- **Ending early:** if the host taps End match, there are no awards; it goes straight to
+  the final leaderboard.
+- Around the Table awards only exist when Game 3 was played.
+
 ## Disconnects
 
 The game continues without disconnected players and adjusts:
@@ -137,6 +245,9 @@ The game continues without disconnected players and adjusts:
   count, and they still earn points if the impostor is caught.
 - **Would You Rather:** a disconnected player's submitted choice still counts and they can
   still earn points.
+- **Around the Table:** a disconnected player's pick still counts and still earns points.
+  If the subject disconnects before answering, the round waits for them until the
+  deadline (or the host's Next); if they never answer, nobody scores that round.
 - **Rejoin:** a player who reconnects with their rejoin token gets their seat, score, and
   (if the round is still running) their private word back. They take part from the
   current phase on.
@@ -149,4 +260,4 @@ The game continues without disconnected players and adjusts:
 ## Out of scope for Saturday
 
 Pumpkin Bowling (stretch), Fake Family Facts, in-game chat, avatars, sound, accounts,
-persistence across server restarts.
+persistence across server restarts, any host-only or hidden view of players' picks.
