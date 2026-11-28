@@ -18,6 +18,10 @@ const state = {
   roundResult: null,
   prompt: null,
   wyrResult: null,
+  attSubject: null,   // ATT_SUBJECT: whose turn (never the private preview)
+  attQuestion: null,
+  attResult: null,
+  award: null,
   matchOver: null,
 };
 
@@ -70,6 +74,7 @@ function handle({ type, payload }) {
       break;
     case 'MATCH_STARTED':
       state.matchOver = null;
+      state.award = null;
       break;
     case 'SUBMITTED':
       state.submitted = payload.playerIds;
@@ -87,6 +92,22 @@ function handle({ type, payload }) {
       break;
     case 'WYR_RESULT':
       state.wyrResult = payload;
+      break;
+    case 'ATT_SUBJECT':
+      state.attSubject = payload;
+      state.attQuestion = null;
+      state.attResult = null;
+      state.submitted = [];
+      break;
+    case 'ATT_QUESTION':
+      state.attQuestion = payload;
+      state.submitted = [];
+      break;
+    case 'ATT_RESULT':
+      state.attResult = payload;
+      break;
+    case 'AWARD':
+      state.award = payload;
       break;
     case 'MATCH_OVER':
       state.matchOver = payload;
@@ -131,8 +152,16 @@ function render() {
   const inGame = screen === 'game' && state.phase;
   $('round-bar').hidden = !inGame;
   if (inGame) {
-    const game = state.phase.game === 'wyr' ? 'Would You Rather Extreme' : 'Mystery';
-    $('round-label').textContent = `${game} · Round ${state.phase.round} of 3 · Room ${state.room.code}`;
+    let label;
+    if (currentPhase() === 'awards') {
+      label = `🏆 Awards · ${state.phase.round} of ${state.award ? state.award.total : '?'}`;
+    } else if (state.phase.game === 'att') {
+      label = `Around the Table · Round ${state.phase.round} of ${state.attSubject ? state.attSubject.total : '?'}`;
+    } else {
+      const game = state.phase.game === 'wyr' ? 'Would You Rather Extreme' : 'Mystery';
+      label = `${game} · Round ${state.phase.round} of 3`;
+    }
+    $('round-label').textContent = `${label} · Room ${state.room.code}`;
   }
 
   if (screen === 'watch') $('watch-btn').disabled = !state.connected;
@@ -209,6 +238,18 @@ function renderGame() {
     }
     case 'wyr_reveal':
       return renderWyrReveal();
+    case 'att_choose':
+      return fill('game-body',
+        el('p', { class: 'huge-emoji center' }, '🎤'),
+        el('p', { class: 'huge-text center' }, `${subjectName()}'s turn!`),
+        el('p', { class: 'big center' }, `${subjectName()} is picking a question…`),
+        el('p', { class: 'center muted' }, 'Everyone else: get ready to guess their answer.'));
+    case 'att_pick':
+      return renderAttPick();
+    case 'att_reveal':
+      return renderAttReveal();
+    case 'awards':
+      return renderAward();
     case 'paused':
       return fill('game-body', el('p', { class: 'huge-text center' }, '⏸️ Paused'),
         el('p', { class: 'big center' }, `Waiting for at least ${state.room.testMode ? 2 : 3} players to reconnect.`));
@@ -266,7 +307,61 @@ function renderMatchOver() {
     el('p', { class: 'huge-text center' }, '🏆 ', m.winnerIds.map(nameOf).join(' & '),
       m.winnerIds.length > 1 ? ' — co-champions!' : ' — champion!'),
     el('ol', { class: 'leaderboard big' }, m.leaderboard.map((e) =>
-      el('li', { class: m.winnerIds.includes(e.playerId) ? 'me' : '' }, `${e.name} — ${e.score}`))));
+      el('li', { class: m.winnerIds.includes(e.playerId) ? 'me' : '' }, `${e.name} — ${e.score}`))),
+    (m.awards || []).length ? el('ul', { class: 'players grid awards-list' }, m.awards.map((a) =>
+      el('li', {}, el('b', {}, a.title), el('br'), a.playerIds.map(nameOf).join(' & ')))) : null);
+}
+
+// ------------------------------------------------------------------ Around the Table
+
+const LETTERS = ['A', 'B', 'C', 'D'];
+
+function subjectName() {
+  return state.attSubject ? nameOf(state.attSubject.subjectId) : '?';
+}
+
+function renderAttPick() {
+  const q = state.attQuestion;
+  if (!q) return fill('game-body', el('p', { class: 'big center' }, 'Loading…'));
+  fill('game-body',
+    el('p', { class: 'big center' }, `🎤 ${nameOf(q.subjectId)}:`),
+    el('p', { class: 'huge-text center' }, q.question),
+    el('div', { class: 'att-grid' }, LETTERS.map((l, i) =>
+      el('div', { class: 'option-card' }, el('span', { class: 'tag' }, l), q.options[i]))),
+    progressList('locked in'));
+}
+
+function renderAttReveal() {
+  const r = state.attResult;
+  const q = state.attQuestion;
+  if (!r) return fill('game-body', el('p', { class: 'big center' }, 'Revealing…'));
+  const name = nameOf(r.subjectId);
+  const who = (letter) => r.predictions.filter((p) => p.option === letter).map((p) => nameOf(p.playerId));
+  fill('game-body',
+    q ? el('p', { class: 'big center' }, q.question) : null,
+    r.answer
+      ? el('p', { class: 'huge-text center' }, `${name} picked ${r.answer}!`)
+      : el('p', { class: 'huge-text center' }, `${name} didn't answer in time.`),
+    r.perfect ? el('p', { class: 'big center perfect' }, '🎯 Perfect round! Everyone knew!') : null,
+    q ? el('div', { class: 'att-grid' }, LETTERS.map((l, i) =>
+      el('div', { class: `option-card ${l === r.answer ? 'winner' : ''}` },
+        el('span', { class: 'tag' }, l), q.options[i],
+        el('small', {}, who(l).join(', '))))) : null,
+    pointsList(r.points));
+}
+
+// ------------------------------------------------------------------ awards
+
+function renderAward() {
+  const a = state.award;
+  if (!a) return fill('game-body', el('p', { class: 'huge-text center' }, 'And the award goes to…'));
+  fill('game-body',
+    el('p', { class: 'big center muted' }, `Award ${a.index} of ${a.total}`),
+    el('div', { class: 'award-card' },
+      el('p', { class: 'award-title' }, a.title),
+      el('p', { class: 'big center' }, a.description),
+      el('p', { class: 'award-winners' }, a.playerIds.map(nameOf).join(' & ')),
+      el('p', { class: 'big center' }, `+${a.points}${a.playerIds.length > 1 ? ' each' : ''}`)));
 }
 
 // ------------------------------------------------------------------ taps

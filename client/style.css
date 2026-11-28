@@ -279,6 +279,45 @@ body.display main { padding: 12px 36px 32px; }
 body.display .sky span { font-size: 48px; }
 body.display .sky span:nth-child(even) { font-size: 36px; }
 
+/* ---- Around the Table */
+.huge-emoji { font-size: 4rem; margin: 8px 0 0; }
+.att-who { margin: 4px 0; font-weight: 700; color: var(--cranberry); }
+.att-question { font-size: 1.35rem; font-weight: 800; margin: 6px 0 12px; }
+.att-card {
+  padding: 14px 16px; margin: 12px 0;
+  background: var(--card); border: 3px solid var(--gold); border-radius: var(--radius);
+}
+.att-options { list-style: none; padding: 0; margin: 0; }
+.att-options li { padding: 6px 0; border-top: 1px dashed var(--line); }
+.att-answer {
+  display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center;
+  padding: 16px; margin: 12px 0; font-size: 1.3rem;
+  background: #fff0c9; border: 3px solid var(--gold-deep); border-radius: var(--radius);
+  animation: award-in 0.45s ease-out;
+}
+.perfect { color: var(--ok); }
+body.display .att-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+body.phone .att-grid { display: grid; gap: 10px; }
+
+/* ---- Awards (Mario Party style: each one pops in) */
+.award-card {
+  text-align: center; padding: 22px 16px; margin: 14px 0;
+  background: linear-gradient(180deg, #fff6dd, #ffe7a8);
+  border: 4px solid var(--gold-deep); border-radius: var(--radius);
+  box-shadow: 0 6px 0 var(--gold-deep);
+  animation: award-in 0.6s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.award-card.won { border-color: var(--cranberry); box-shadow: 0 6px 0 var(--cranberry-deep); }
+.award-title { font-size: 2rem; font-weight: 900; color: var(--cranberry); margin: 0 0 6px; }
+.award-winners { font-size: 1.6rem; font-weight: 800; margin: 12px 0 4px; }
+body.display .award-title { font-size: 4rem; }
+body.display .award-winners { font-size: 3rem; }
+.awards-list li.me { font-weight: 800; color: var(--cranberry); }
+@keyframes award-in {
+  0% { transform: scale(0.6) rotate(-3deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
   .sky { display: none; }
