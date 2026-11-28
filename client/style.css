@@ -352,3 +352,7 @@ body.display .award-winners { font-size: 3rem; }
   * { transition: none !important; animation: none !important; }
   .sky { display: none; }
 }
+
+/* Lobby: my avatar above the player list, with the Customize button */
+.lobby-me { margin: 4px 0 10px; }
+.lobby-me .avatar.xl { margin-top: 10px; }

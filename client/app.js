@@ -51,6 +51,7 @@ const state = {
   matchOver: null,
   endArmed: false,    // first tap on "End match" arms it, second sends
   stealArmed: false,  // same two-tap lock-in for the impostor's steal
+  editingAvatar: false,  // the avatar editor screen is open (lobby only, client only)
 };
 
 function resetMystery() {
@@ -116,6 +117,7 @@ function handle({ type, payload }) {
       state.endArmed = false;
       state.stealArmed = false;
       state.pending = null;  // a new phase: nothing of mine is in flight any more
+      if (payload.phase !== 'lobby') state.editingAvatar = false;  // the match started
       if (payload.phase === 'mystery_discuss') resetMystery();
       if (payload.phase === 'lobby') {
         state.word = null;
@@ -238,6 +240,7 @@ function render() {
   if (!state.me) screen = state.rejoining || (!state.connected && loadSaved()) ? 'connecting' : 'join';
   else if (!state.room) screen = 'connecting';
   else screen = currentPhase();
+  if (screen === 'lobby' && state.editingAvatar) screen = 'avatar';
   Feast.showScreen(screen);
 
   renderRoundBar(screen);
@@ -247,6 +250,7 @@ function render() {
   switch (screen) {
     case 'join': renderJoin(); break;
     case 'lobby': renderLobby(); break;
+    case 'avatar': renderAvatarEditor(); break;
     case 'mystery_vote': renderVote(); break;
     case 'mystery_guess': renderGuess(); break;
     case 'mystery_reveal': renderMysteryReveal(); break;
@@ -263,7 +267,7 @@ function render() {
 }
 
 function renderRoundBar(screen) {
-  const inGame = state.phase && !['join', 'connecting', 'lobby', 'match_over'].includes(screen);
+  const inGame = state.phase && !['join', 'connecting', 'lobby', 'avatar', 'match_over'].includes(screen);
   $('round-bar').hidden = !inGame;
   if (!inGame) return;
   const me = players().find((p) => p.id === state.me);
@@ -338,8 +342,8 @@ function nextLabel(screen) {
 }
 
 function renderHostBar(screen) {
-  const canNext = isHost() && !['join', 'connecting', 'lobby', 'paused'].includes(screen);
-  const canEnd = isHost() && !['join', 'connecting', 'lobby', 'match_over'].includes(screen);
+  const canNext = isHost() && !['join', 'connecting', 'lobby', 'avatar', 'paused'].includes(screen);
+  const canEnd = isHost() && !['join', 'connecting', 'lobby', 'avatar', 'match_over'].includes(screen);
   $('host-bar').hidden = !canNext && !canEnd;
   $('next-btn').hidden = !canNext;
   $('next-btn').textContent = nextLabel(screen) || 'Next';
@@ -355,7 +359,11 @@ function renderJoin() {
 
 function renderLobby() {
   $('lobby-code').textContent = state.room.code;
-  renderAvatarEditor();
+  const me = playerOf(state.me);
+  fill('lobby-me',
+    el('div', { class: 'center' }, Feast.avatar(me && me.avatar, 'xl')),
+    el('button', { class: 'btn', id: 'customize-btn',
+                   onclick: () => { state.editingAvatar = true; render(); } }, '🎨 Customize avatar'));
   fill('lobby-players', players().map((p) =>
     el('li', { class: p.connected ? '' : 'away' },
       Feast.avatar(p.avatar), p.id === state.room.hostId ? '👑 ' : '', p.name,
@@ -728,6 +736,11 @@ $('create-btn').addEventListener('click', () => {
   if (!name) return;
   Feast.requestWakeLock();
   if (socket.send('CREATE_ROOM', { name })) state.joining = true;
+  render();
+});
+
+$('avatar-done').addEventListener('click', () => {
+  state.editingAvatar = false;  // client only: the avatar was already saved on each tap
   render();
 });
 

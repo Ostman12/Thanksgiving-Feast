@@ -46,10 +46,17 @@
       <p class="muted center">Room code</p>
       <p id="lobby-code" class="room-code"></p>
       <p class="center">You're in! 🎉</p>
-      <!-- Customize your avatar (lobby only). Filled in by app.js. -->
-      <div id="avatar-editor" class="avatar-editor"></div>
+      <!-- My avatar and a button to the editor screen below. Filled in by app.js. -->
+      <div id="lobby-me" class="lobby-me"></div>
       <ul id="lobby-players" class="players"></ul>
       <div id="lobby-host"></div>
+    </section>
+
+    <!-- Avatar editor: its own screen, opened from the lobby (client only). -->
+    <section data-screen="avatar" hidden>
+      <h2 class="center">🎨 Your avatar</h2>
+      <div id="avatar-editor" class="avatar-editor"></div>
+      <button id="avatar-done" class="btn primary">Done</button>
     </section>
 
     <!-- Mystery: my secret word, shown in discuss, vote and guess. -->
