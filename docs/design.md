@@ -44,7 +44,7 @@ route-plus-callback code is short enough to explain line by line.
 | Join URL (medium) and room code (huge) | Join form, then "You're in!" |
 | Player list as people join | — |
 | Round number, big countdown | Small countdown |
-| "5 of 7 voted" progress | Vote buttons, secret word (blurred), guess box, A/B + prediction |
+| "5 of 7 voted" progress | Vote buttons, secret word (blurred), guess box, A/B buttons |
 | Would You Rather prompt, large | A/B buttons |
 | Reveals: votes, impostor, words, points | "You earned +100" |
 | Leaderboard, champion 🏆 | Your score |

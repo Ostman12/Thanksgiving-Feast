@@ -114,11 +114,10 @@ struct RoundResultEvent {
   std::vector<PointsDelta> points;
 };
 
-// One player's Would You Rather submission. 'A' or 'B'.
+// One player's Would You Rather pick. 'A' or 'B'.
 struct WyrChoice {
   std::string playerId;
   char choice = 'A';
-  char prediction = 'A';
 };
 
 // WYR_PROMPT

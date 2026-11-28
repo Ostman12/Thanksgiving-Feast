@@ -26,7 +26,7 @@ std::vector<PointsDelta> wyrPoints(const std::vector<std::string>& playerIds,
     int delta = 0;
     for (const WyrChoice& c : choices) {
       if (c.playerId != id) continue;
-      if (tally.majority && c.prediction == *tally.majority) delta += kPredictionPoints;
+      if (tally.majority && c.choice == *tally.majority) delta += kMajorityPoints;
       int sameChoice = (c.choice == 'A') ? tally.countA : tally.countB;
       if (sameChoice == 1 && total >= kLoneWolfMinChoosers) delta += kLoneWolfPoints;
     }

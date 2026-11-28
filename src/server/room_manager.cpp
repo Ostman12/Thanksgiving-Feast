@@ -125,11 +125,8 @@ std::string RoomManager::playerAction(const Seat& seat, const std::string& type,
   }
   if (type == "SUBMIT_CHOICE") {
     std::string choice;
-    std::string prediction;
-    if (!readString(payload, "choice", choice) || !readString(payload, "prediction", prediction)) {
-      return "invalid message";
-    }
-    return room.submitChoice(me, choice, prediction, nowMs);
+    if (!readString(payload, "choice", choice)) return "invalid message";
+    return room.submitChoice(me, choice, nowMs);
   }
   return "invalid message";
 }

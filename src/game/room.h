@@ -98,9 +98,9 @@ class Room {
   // GUESS_WORD
   std::string guessWord(const std::string& playerId, const std::string& rawWord,
                         std::int64_t nowMs);
-  // SUBMIT_CHOICE. choice and prediction must each be exactly "A" or "B".
+  // SUBMIT_CHOICE. choice must be exactly "A" or "B".
   std::string submitChoice(const std::string& playerId, const std::string& choice,
-                           const std::string& prediction, std::int64_t nowMs);
+                           std::int64_t nowMs);
 
   // Ends the current phase if its deadline has passed.
   void tick(std::int64_t nowMs);

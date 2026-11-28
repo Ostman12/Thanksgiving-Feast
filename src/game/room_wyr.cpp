@@ -30,14 +30,14 @@ void Room::setupWyrRound() {
 }
 
 std::string Room::submitChoice(const std::string& playerId, const std::string& choice,
-                               const std::string& prediction, std::int64_t nowMs) {
+                               std::int64_t nowMs) {
   if (phase_ != Phase::WyrChoose) return "wrong phase";
   if (findPlayer(playerId) == nullptr) return "not in a room";
   std::vector<std::string> chose = chooserIds();
   if (std::find(chose.begin(), chose.end(), playerId) != chose.end()) return "already submitted";
-  if (!isOption(choice) || !isOption(prediction)) return "invalid choice";
+  if (!isOption(choice)) return "invalid choice";
 
-  wyr_.choices.push_back({playerId, choice[0], prediction[0]});
+  wyr_.choices.push_back({playerId, choice[0]});
   emit(SubmittedEvent{chooserIds()});
   if (allConnectedChose()) advance(nowMs);
   return "";

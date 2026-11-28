@@ -9,7 +9,7 @@
 
 namespace feast {
 
-constexpr int kPredictionPoints = 100;  // prediction matches the majority
+constexpr int kMajorityPoints = 100;    // you picked the majority option
 constexpr int kLoneWolfPoints = 50;     // only one to pick your option
 constexpr int kLoneWolfMinChoosers = 3;
 

@@ -98,9 +98,7 @@ json toJson(const WyrPromptEvent& e) {
 json toJson(const WyrResultEvent& e) {
   json choices = json::array();
   for (const WyrChoice& c : e.choices) {
-    choices.push_back({{"playerId", c.playerId},
-                       {"choice", std::string(1, c.choice)},
-                       {"prediction", std::string(1, c.prediction)}});
+    choices.push_back({{"playerId", c.playerId}, {"choice", std::string(1, c.choice)}});
   }
   return message("WYR_RESULT", {{"choices", choices},
                                 {"countA", e.countA},

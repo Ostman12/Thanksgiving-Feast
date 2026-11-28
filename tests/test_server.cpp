@@ -246,11 +246,11 @@ TEST(server_wyr_messages_over_json) {
     a = l.m.handleMessage(1, msg("NEXT"), T0);
   }
   CHECK_EQ(ofType(to(a, 3), "WYR_PROMPT").size(), std::size_t(1));
-  CHECK_EQ(errorReason(l.m.handleMessage(2, msg("SUBMIT_CHOICE", {{"choice", "A"}}), T0), 2),
-           std::string("invalid message"));
+  CHECK_EQ(errorReason(l.m.handleMessage(2, msg("SUBMIT_CHOICE"), T0), 2),
+           std::string("invalid message"));  // choice missing
   Actions last;
   for (ConnId c = 1; c <= 4; ++c) {
-    last = l.m.handleMessage(c, msg("SUBMIT_CHOICE", {{"choice", c == 4 ? "B" : "A"}, {"prediction", "A"}}), T0);
+    last = l.m.handleMessage(c, msg("SUBMIT_CHOICE", {{"choice", c == 4 ? "B" : "A"}}), T0);
   }
   std::vector<json> results = ofType(to(last, 2), "WYR_RESULT");
   CHECK_EQ(results.size(), std::size_t(1));

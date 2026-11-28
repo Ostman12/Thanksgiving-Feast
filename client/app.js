@@ -37,8 +37,7 @@ const state = {
   // Would You Rather
   prompt: null,
   wyrResult: null,
-  choice: null,
-  prediction: null,
+  choice: null,       // my pick, 'A' or 'B', once tapped
   // Taps waiting for the server (buttons stay locked meanwhile)
   pending: null,      // 'vote' | 'guess' | 'choice' | null
   matchOver: null,
@@ -57,7 +56,6 @@ function resetWyr() {
   state.submitted = [];
   state.wyrResult = null;
   state.choice = null;
-  state.prediction = null;
   state.pending = null;
 }
 
@@ -407,13 +405,14 @@ function renderChoose() {
   for (const button of document.querySelectorAll('[data-pick]')) {
     const option = button.dataset.option;
     button.textContent = `${option}: ${option === 'A' ? p.optionA : p.optionB}`;
-    button.classList.toggle('selected', state[button.dataset.pick] === option);
+    button.classList.toggle('selected', state.choice === option);
   }
   const done = iSubmitted() || state.pending === 'choice';
   $('choose-body').hidden = done;
-  $('choice-btn').disabled = !state.choice || !state.prediction;
+  const picked = state.choice === 'A' ? p.optionA : state.choice === 'B' ? p.optionB : null;
   fill('choose-done', done
     ? [el('p', { class: 'big center' }, state.pending ? 'Sending…' : 'Sent ✓'),
+       picked ? el('p', { class: 'center' }, `You'd rather: ${picked}`) : null,
        el('p', { class: 'muted center' }, `${progress()} answered`)]
     : el('p', { class: 'muted center' }, `${progress()} answered`));
 }
@@ -432,11 +431,11 @@ function renderWyrReveal() {
     el('h2', {}, '📊 Results'),
     el('p', { class: r.majority === 'A' ? 'winner' : '' }, `A: ${p.optionA} — `, el('b', {}, String(r.countA))),
     el('p', { class: r.majority === 'B' ? 'winner' : '' }, `B: ${p.optionB} — `, el('b', {}, String(r.countB))),
-    el('p', {}, r.majority ? `Most people picked ${r.majority}.` : 'Even split: no prediction points.'),
-    mine ? el('p', {}, `You picked ${mine.choice} and predicted ${mine.prediction}.`) : el('p', {}, "You didn't answer."),
+    el('p', {}, r.majority ? `Most people picked ${r.majority}.` : 'Even split: no majority points.'),
+    mine ? el('p', {}, `You picked ${mine.choice}.`) : el('p', {}, "You didn't answer."),
     el('p', { class: 'big center' }, delta ? `You earned ${Feast.signed(delta)} 🎉` : 'No points this time.'),
     el('ul', { class: 'plain' }, r.choices.map((c) =>
-      el('li', {}, `${nameOf(c.playerId)}: picked ${c.choice}, predicted ${c.prediction}`))),
+      el('li', {}, `${nameOf(c.playerId)}: ${c.choice}`))),
     pointsList(r.points));
 }
 
@@ -536,19 +535,17 @@ $('steal-btn').addEventListener('click', () => {
 });
 $('guess-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendGuess(); });
 
+// One tap sends your pick, like a buzzer.
 for (const button of document.querySelectorAll('[data-pick]')) {
   button.addEventListener('click', () => {
-    state[button.dataset.pick] = button.dataset.option;
-    render();
+    if (state.pending || iSubmitted()) return;
+    if (socket.send('SUBMIT_CHOICE', { choice: button.dataset.option })) {
+      state.choice = button.dataset.option;
+      state.pending = 'choice';
+      render();
+    }
   });
 }
-$('choice-btn').addEventListener('click', () => {
-  if (!state.choice || !state.prediction) return;
-  if (socket.send('SUBMIT_CHOICE', { choice: state.choice, prediction: state.prediction })) {
-    state.pending = 'choice';
-    render();
-  }
-});
 
 $('next-btn').addEventListener('click', () => socket.send('NEXT'));
 

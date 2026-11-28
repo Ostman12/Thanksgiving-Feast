@@ -102,11 +102,10 @@ Each prompt:
 
 1. **Prompt.** The server picks an unused prompt with two extreme options, A and B
    (e.g. "Eat only cranberry sauce for a year" vs. "Never eat pie again").
-2. **Choose phase.** Each player secretly submits two things at once, at most once:
-   - **Choice:** which option they would pick (A or B).
-   - **Prediction:** which option they think the majority of the room picked (A or B).
-3. **Reveal.** Everyone sees who chose what, the A/B counts, which side won, each
-   player's prediction, and points earned. Arguing happens in person.
+2. **Choose phase.** Each player secretly picks the option they would choose (A or B),
+   at most once.
+3. **Reveal.** Everyone sees who chose what, the A/B counts, which side won, and points
+   earned. Arguing happens in person.
 
 The majority is whichever option more players chose. If the counts are equal, there is no
 majority.
@@ -115,9 +114,9 @@ majority.
 
 | Outcome | Points |
 |---|---|
-| Your prediction matches the majority | +100 |
+| You picked the majority option | +100 |
 | You are the only player who chose your option (and at least 3 players chose) | +50 ("lone wolf") |
-| No majority (even split) | no prediction points for anyone |
+| No majority (even split) | no majority points for anyone |
 
 Only players who submitted count toward the majority.
 

@@ -51,7 +51,7 @@ void reveal replays the **same** `round` number with new words and a new imposto
 | `START_MATCH`   | `{}`                       | `lobby`, host only, 4+ connected players (2+ in test mode).                                                  |
 | `CAST_VOTE`     | `targetId` (string or `null`) | `mystery_vote`, sender is in the round, has not voted. `null` means Skip. A string must be a player in the round who is not the sender. |
 | `GUESS_WORD`    | `word`                     | `mystery_discuss` (a steal) or `mystery_guess` (final guess), sender is the impostor, has not guessed this round. Word is 1–30 characters after trimming. No `SUBMITTED` is sent for it (it would name the impostor). |
-| `SUBMIT_CHOICE` | `choice`, `prediction` (each `"A"` or `"B"`) | `wyr_choose`, has not submitted.                                                         |
+| `SUBMIT_CHOICE` | `choice` (`"A"` or `"B"`) | `wyr_choose`, has not submitted. |
 | `NEXT`          | `{}`                       | Host only. Any phase except `lobby` and `paused`.                                                            |
 | `END_MATCH`     | `{}`                       | Host only. Any phase except `lobby` and `match_over`. Goes to `match_over`.                                  |
 
@@ -80,7 +80,7 @@ its result message.
 | `VOTE_RESULT`   | `votes`: [`{voterId, targetId}`] (`targetId` `null` = Skip), `accusedId` (`null` if nobody caught), `caught` (bool) | Everyone, at the end of `mystery_vote` (not sent when a steal ended the round). Reveals the impostor only when `caught` is true. |
 | `ROUND_RESULT`  | `impostorId`, `mainWord`, `impostorWord`, `guess` (string or `null`), `guessCorrect` (bool or `null`), `void` (bool), `earlyGuess` (bool: the guess was a steal during discussion), `points`: [`{playerId, delta}`] | Everyone, entering `mystery_reveal`. |
 | `WYR_PROMPT`    | `optionA`, `optionB` | Everyone, at the start of `wyr_choose`. |
-| `WYR_RESULT`    | `choices`: [`{playerId, choice, prediction}`], `countA`, `countB`, `majority` (`"A"`, `"B"`, or `null` on an even split), `points`: [`{playerId, delta}`] | Everyone, entering `wyr_reveal`. |
+| `WYR_RESULT`    | `choices`: [`{playerId, choice}`], `countA`, `countB`, `majority` (`"A"`, `"B"`, or `null` on an even split), `points`: [`{playerId, delta}`] | Everyone, entering `wyr_reveal`. |
 | `MATCH_OVER`    | `winnerIds` (list; ties are co-champions), `leaderboard`: [`{playerId, name, score}`] sorted high to low | Everyone. |
 
 Scores live in `ROOM_STATE.players[].score`; there is no separate `SCORES` message.

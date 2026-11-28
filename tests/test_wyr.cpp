@@ -13,9 +13,7 @@ using namespace testhelp;
 // ================================================================ pure rules
 
 namespace {
-WyrChoice pick(const std::string& id, char choice, char prediction) {
-  return WyrChoice{id, choice, prediction};
-}
+WyrChoice pick(const std::string& id, char choice) { return WyrChoice{id, choice}; }
 
 int deltaFor(const std::vector<PointsDelta>& points, const std::string& id) {
   for (const PointsDelta& d : points) {
@@ -26,52 +24,55 @@ int deltaFor(const std::vector<PointsDelta>& points, const std::string& id) {
 }  // namespace
 
 TEST(wyr_tally_majority) {
-  WyrTally t = tallyChoices({pick("a", 'A', 'A'), pick("b", 'A', 'B'), pick("c", 'B', 'A')});
+  WyrTally t = tallyChoices({pick("a", 'A'), pick("b", 'A'), pick("c", 'B')});
   CHECK_EQ(t.countA, 2);
   CHECK_EQ(t.countB, 1);
   CHECK(t.majority == std::optional<char>('A'));
 }
 
 TEST(wyr_tally_even_split_has_no_majority) {
-  WyrTally t = tallyChoices({pick("a", 'A', 'A'), pick("b", 'B', 'B')});
+  WyrTally t = tallyChoices({pick("a", 'A'), pick("b", 'B')});
   CHECK(!t.majority.has_value());
   CHECK(!tallyChoices({}).majority.has_value());  // nobody chose
 }
 
-TEST(wyr_prediction_points) {
+// rules.md WYR scoring: majority pickers +100, a lone wolf +50.
+TEST(wyr_majority_pickers_score) {
   // 3 A vs 1 B. Majority A.
-  std::vector<WyrChoice> c = {pick("a", 'A', 'A'), pick("b", 'A', 'B'), pick("c", 'A', 'A'),
-                              pick("d", 'B', 'B')};
+  std::vector<WyrChoice> c = {pick("a", 'A'), pick("b", 'A'), pick("c", 'A'), pick("d", 'B')};
   auto p = wyrPoints({"a", "b", "c", "d"}, c);
   CHECK_EQ(deltaFor(p, "a"), 100);
-  CHECK_EQ(deltaFor(p, "b"), 0);
+  CHECK_EQ(deltaFor(p, "b"), 100);
   CHECK_EQ(deltaFor(p, "c"), 100);
-  CHECK_EQ(deltaFor(p, "d"), 50);  // lone wolf, wrong prediction
+  CHECK_EQ(deltaFor(p, "d"), 50);  // lone wolf
 }
 
-TEST(wyr_lone_wolf_and_correct_prediction_stack) {
-  std::vector<WyrChoice> c = {pick("a", 'A', 'A'), pick("b", 'A', 'A'), pick("d", 'B', 'A')};
-  auto p = wyrPoints({"a", "b", "d"}, c);
-  CHECK_EQ(deltaFor(p, "d"), 150);
+TEST(wyr_minority_but_not_alone_scores_zero) {
+  // 3 A vs 2 B: the B pickers are neither majority nor alone.
+  std::vector<WyrChoice> c = {pick("a", 'A'), pick("b", 'A'), pick("c", 'A'), pick("d", 'B'),
+                              pick("e", 'B')};
+  auto p = wyrPoints({"a", "b", "c", "d", "e"}, c);
+  CHECK_EQ(deltaFor(p, "a"), 100);
+  CHECK_EQ(deltaFor(p, "d"), 0);
+  CHECK_EQ(deltaFor(p, "e"), 0);
 }
 
 TEST(wyr_lone_wolf_needs_3_choosers) {
   // 2 choosers: each is alone on their side, but nobody is a lone wolf.
-  std::vector<WyrChoice> c = {pick("a", 'A', 'A'), pick("b", 'B', 'A')};
+  std::vector<WyrChoice> c = {pick("a", 'A'), pick("b", 'B')};
   auto p = wyrPoints({"a", "b"}, c);
-  CHECK_EQ(deltaFor(p, "a"), 0);  // even split: no prediction points either
+  CHECK_EQ(deltaFor(p, "a"), 0);  // even split: no majority points either
   CHECK_EQ(deltaFor(p, "b"), 0);
 }
 
-TEST(wyr_even_split_no_prediction_points) {
-  std::vector<WyrChoice> c = {pick("a", 'A', 'A'), pick("b", 'A', 'B'), pick("c", 'B', 'A'),
-                              pick("d", 'B', 'B')};
+TEST(wyr_even_split_no_majority_points) {
+  std::vector<WyrChoice> c = {pick("a", 'A'), pick("b", 'A'), pick("c", 'B'), pick("d", 'B')};
   auto p = wyrPoints({"a", "b", "c", "d"}, c);
   for (const char* id : {"a", "b", "c", "d"}) CHECK_EQ(deltaFor(p, id), 0);
 }
 
 TEST(wyr_non_submitter_scores_zero) {
-  std::vector<WyrChoice> c = {pick("a", 'A', 'A'), pick("b", 'A', 'A'), pick("c", 'B', 'A')};
+  std::vector<WyrChoice> c = {pick("a", 'A'), pick("b", 'A'), pick("c", 'B')};
   auto p = wyrPoints({"a", "b", "c", "x"}, c);
   CHECK_EQ(p.size(), std::size_t(4));
   CHECK_EQ(deltaFor(p, "x"), 0);
@@ -131,27 +132,26 @@ TEST(wyr_three_different_prompts) {
 
 TEST(wyr_submit_validation) {
   WyrGame g(4);
-  CHECK_EQ(g.room.submitChoice(g.id(1), "C", "A", T0), std::string("invalid choice"));
-  CHECK_EQ(g.room.submitChoice(g.id(1), "a", "A", T0), std::string("invalid choice"));
-  CHECK_EQ(g.room.submitChoice(g.id(1), "A", "", T0), std::string("invalid choice"));
-  CHECK_EQ(g.room.submitChoice(g.id(1), "AB", "A", T0), std::string("invalid choice"));
-  CHECK_EQ(g.room.submitChoice("p999", "A", "A", T0), std::string("not in a room"));
-  CHECK_EQ(g.room.submitChoice(g.id(1), "A", "B", T0), std::string(""));
-  CHECK_EQ(g.room.submitChoice(g.id(1), "B", "B", T0), std::string("already submitted"));
+  CHECK_EQ(g.room.submitChoice(g.id(1), "C", T0), std::string("invalid choice"));
+  CHECK_EQ(g.room.submitChoice(g.id(1), "a", T0), std::string("invalid choice"));
+  CHECK_EQ(g.room.submitChoice(g.id(1), "AB", T0), std::string("invalid choice"));
+  CHECK_EQ(g.room.submitChoice("p999", "A", T0), std::string("not in a room"));
+  CHECK_EQ(g.room.submitChoice(g.id(1), "A", T0), std::string(""));
+  CHECK_EQ(g.room.submitChoice(g.id(1), "B", T0), std::string("already submitted"));
 }
 
 TEST(wyr_submit_only_in_choose_phase) {
   Setup s(4);
   s.room.startMatch(s.host(), T0);
-  CHECK_EQ(s.room.submitChoice(s.id(1), "A", "A", T0), std::string("wrong phase"));
+  CHECK_EQ(s.room.submitChoice(s.id(1), "A", T0), std::string("wrong phase"));
   WyrGame g(4);
   g.room.next(g.host(), T0);  // reveal
-  CHECK_EQ(g.room.submitChoice(g.id(1), "A", "A", T0), std::string("wrong phase"));
+  CHECK_EQ(g.room.submitChoice(g.id(1), "A", T0), std::string("wrong phase"));
 }
 
 TEST(wyr_submit_broadcasts_ids_only) {
   WyrGame g(4);
-  g.room.submitChoice(g.id(2), "B", "A", T0);
+  g.room.submitChoice(g.id(2), "B", T0);
   std::vector<Outgoing> out = g.room.takeOutbox();
   CHECK_EQ(out.size(), std::size_t(1));
   std::vector<SubmittedEvent> sub = eventsOf<SubmittedEvent>(out);
@@ -164,16 +164,16 @@ TEST(wyr_submit_broadcasts_ids_only) {
 
 TEST(wyr_ends_when_all_connected_submitted) {
   WyrGame g(4);
-  for (int i = 0; i < 3; ++i) g.room.submitChoice(g.id(i), "A", "A", T0);
+  for (int i = 0; i < 3; ++i) g.room.submitChoice(g.id(i), "A", T0);
   CHECK_EQ(g.room.phase(), Phase::WyrChoose);
-  g.room.submitChoice(g.id(3), "B", "A", T0);
+  g.room.submitChoice(g.id(3), "B", T0);
   CHECK_EQ(g.room.phase(), Phase::WyrReveal);
   CHECK(!g.room.deadlineMs().has_value());
 }
 
 TEST(wyr_deadline_ends_choose_phase) {
   WyrGame g(4);
-  g.room.submitChoice(g.id(1), "A", "A", T0);
+  g.room.submitChoice(g.id(1), "A", T0);
   g.room.tick(T0 + 29'999);
   CHECK_EQ(g.room.phase(), Phase::WyrChoose);
   g.room.tick(T0 + 30'000);
@@ -182,7 +182,7 @@ TEST(wyr_deadline_ends_choose_phase) {
 
 TEST(wyr_does_not_wait_for_disconnected_player) {
   WyrGame g(4);
-  for (int i = 0; i < 3; ++i) g.room.submitChoice(g.id(i), "A", "A", T0);
+  for (int i = 0; i < 3; ++i) g.room.submitChoice(g.id(i), "A", T0);
   g.room.disconnect(g.id(3), T0);
   CHECK_EQ(g.room.phase(), Phase::WyrReveal);
 }
@@ -190,10 +190,10 @@ TEST(wyr_does_not_wait_for_disconnected_player) {
 TEST(wyr_result_and_scores) {
   WyrGame g(4);
   std::map<std::string, int> before = g.scores();
-  g.room.submitChoice(g.id(0), "A", "A", T0);  // +100
-  g.room.submitChoice(g.id(1), "A", "B", T0);  // 0
-  g.room.submitChoice(g.id(2), "A", "A", T0);  // +100
-  g.room.submitChoice(g.id(3), "B", "A", T0);  // +100 prediction, +50 lone wolf
+  g.room.submitChoice(g.id(0), "A", T0);  // majority: +100
+  g.room.submitChoice(g.id(1), "A", T0);  // majority: +100
+  g.room.submitChoice(g.id(2), "A", T0);  // majority: +100
+  g.room.submitChoice(g.id(3), "B", T0);  // lone wolf: +50
   std::vector<Outgoing> out = g.room.takeOutbox();
 
   std::vector<WyrResultEvent> results = eventsOf<WyrResultEvent>(out);
@@ -209,24 +209,24 @@ TEST(wyr_result_and_scores) {
 
   std::map<std::string, int> after = g.scores();
   CHECK_EQ(after[g.id(0)] - before[g.id(0)], 100);
-  CHECK_EQ(after[g.id(1)] - before[g.id(1)], 0);
+  CHECK_EQ(after[g.id(1)] - before[g.id(1)], 100);
   CHECK_EQ(after[g.id(2)] - before[g.id(2)], 100);
-  CHECK_EQ(after[g.id(3)] - before[g.id(3)], 150);
+  CHECK_EQ(after[g.id(3)] - before[g.id(3)], 50);
 }
 
 TEST(wyr_disconnected_choice_still_counts_and_scores) {
   WyrGame g(4);
   std::map<std::string, int> before = g.scores();
-  g.room.submitChoice(g.id(3), "B", "A", T0);
+  g.room.submitChoice(g.id(3), "B", T0);
   g.room.disconnect(g.id(3), T0);
-  for (int i = 0; i < 3; ++i) g.room.submitChoice(g.id(i), "A", "A", T0);
+  for (int i = 0; i < 3; ++i) g.room.submitChoice(g.id(i), "A", T0);
   CHECK_EQ(g.room.phase(), Phase::WyrReveal);
-  CHECK_EQ(g.scores()[g.id(3)] - before[g.id(3)], 150);
+  CHECK_EQ(g.scores()[g.id(3)] - before[g.id(3)], 50);  // lone wolf, while away
 }
 
 TEST(wyr_rejoin_during_choose_gets_prompt_and_submitted) {
   WyrGame g(4);
-  g.room.submitChoice(g.id(1), "A", "A", T0);
+  g.room.submitChoice(g.id(1), "A", T0);
   g.room.disconnect(g.id(2), T0);
   g.room.takeOutbox();
   g.room.rejoin(g.players[2].token, T0);
@@ -246,7 +246,7 @@ TEST(wyr_rejoin_during_choose_gets_prompt_and_submitted) {
   }
   CHECK_EQ(prompts, 1);
   CHECK_EQ(submitted, 1);
-  CHECK_EQ(g.room.submitChoice(g.id(2), "B", "B", T0), std::string(""));
+  CHECK_EQ(g.room.submitChoice(g.id(2), "B", T0), std::string(""));
 }
 
 TEST(wyr_rejoin_during_reveal_gets_result) {
@@ -262,10 +262,11 @@ TEST(wyr_rejoin_during_reveal_gets_result) {
 
 TEST(full_match_winner_is_top_score) {
   WyrGame g(4);
-  // Player 3 is a correct-predicting lone wolf every prompt: +150 x 3.
+  std::map<std::string, int> before = g.scores();
+  // Every prompt: players 0-2 pick A (majority, +100), player 3 is a lone wolf (+50).
   for (int round = 1; round <= 3; ++round) {
-    for (int i = 0; i < 3; ++i) g.room.submitChoice(g.id(i), "A", "B", T0);
-    g.room.submitChoice(g.id(3), "B", "A", T0);
+    for (int i = 0; i < 3; ++i) g.room.submitChoice(g.id(i), "A", T0);
+    g.room.submitChoice(g.id(3), "B", T0);
     g.room.next(g.host(), T0);  // reveal -> next prompt or match over
   }
   CHECK_EQ(g.room.phase(), Phase::MatchOver);
@@ -282,5 +283,6 @@ TEST(full_match_winner_is_top_score) {
                     over.winnerIds.end();
     CHECK_EQ(isWinner, e.score == over.leaderboard.front().score);
   }
-  CHECK(g.room.findPlayer(g.id(3))->score >= 450);
+  CHECK_EQ(g.room.findPlayer(g.id(0))->score - before[g.id(0)], 300);
+  CHECK_EQ(g.room.findPlayer(g.id(3))->score - before[g.id(3)], 150);
 }
